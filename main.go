@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/rivo/tview"
+	"gopkg.in/yaml.v3"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,8 +12,13 @@ import (
 
 const pythonRequirements = "requirements-2.12.txt"
 
+type AppConfig struct {
+	Predefined_node_labels map[string]string
+}
+
 var appPath string
 var kubesprayPath string
+var appConfig AppConfig
 var app = tview.NewApplication()
 var pages = tview.NewPages()
 var formProject = tview.NewForm()
@@ -22,13 +28,12 @@ var inventoryFile string
 var nodeIps []string
 var inventory = Inventory{}
 var modalError = tview.NewModal()
-var modifyNodeHostname bool = true
 var nodeHostnamePrefix string = "node"
 var flexEditInventory = tview.NewFlex()
 var formHostDetails = tview.NewForm()
 var hostDetails HostDetails
 var formEditGroups = tview.NewForm()
-var formEditNodeLabels = tview.NewForm()
+var flexEditNodeLabels = tview.NewFlex()
 
 func check(e error) {
 	if e != nil {
@@ -46,10 +51,30 @@ func checkRoot() {
 	}
 }
 
+func findKubesprayPath() {
+	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray*"))
+	check(err)
+	if matches == nil {
+		fmt.Println("Can't find kubespray directory.")
+		check(err)
+	}
+	for _, match := range matches {
+		f, err := os.Stat(match)
+		check(err)
+		if f.IsDir() {
+			kubesprayPath = match
+		}
+	}
+	if kubesprayPath == "" {
+		panic("Can't find kubespray directory.")
+	}
+}
+
 // Todo: mirror configurable
 func installDependencies() {
 	_, err := os.Stat(filepath.Join(appPath, ".dependencies-installed"))
 	if err == nil {
+		findKubesprayPath()
 		return
 	}
 	if !errors.Is(err, os.ErrNotExist) {
@@ -67,22 +92,7 @@ func installDependencies() {
 		check(err)
 	}
 
-	matches, err = filepath.Glob(filepath.Join(appPath, "kubespray*"))
-	check(err)
-	if matches == nil {
-		fmt.Println("Can't find kubespray directory.")
-		check(err)
-	}
-	for _, match := range matches {
-		f, err := os.Stat(match)
-		check(err)
-		if f.IsDir() {
-			kubesprayPath = match
-		}
-	}
-	if kubesprayPath == "" {
-		panic("Can't find kubespray directory.")
-	}
+	findKubesprayPath()
 
 	cmds := [][]string{{"/bin/sh", "-c", "yum install -y python3-pip podman podman-docker sshpass"},
 		{"touch", "/etc/containers/nodocker"},
@@ -100,6 +110,14 @@ func installDependencies() {
 	file, err := os.Create(filepath.Join(appPath, ".dependencies-installed"))
 	check(err)
 	err = file.Close()
+	check(err)
+}
+
+func readConfig() {
+	data, err := os.ReadFile(filepath.Join(appPath, "config.yaml"))
+	check(err)
+
+	err = yaml.Unmarshal(data, &appConfig)
 	check(err)
 }
 
@@ -130,7 +148,6 @@ func initFormProject() {
 					})
 			}
 
-			modifyNodeHostname = true
 			nodeHostnamePrefix = "node"
 			formNewInventory.Clear(true)
 			initFormNewInventory()
@@ -163,6 +180,8 @@ func main() {
 
 	installDependencies()
 
+	readConfig()
+
 	initFormProject()
 
 	pages.AddPage("Error", modalError, true, false)
@@ -170,7 +189,7 @@ func main() {
 	pages.AddPage("New Inventory", formNewInventory, true, false)
 	pages.AddPage("Edit Inventory", flexEditInventory, true, false)
 	pages.AddPage("Edit Groups", formEditGroups, true, false)
-	pages.AddPage("Edit Node Labels", formEditNodeLabels, true, false)
+	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)

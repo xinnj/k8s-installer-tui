@@ -64,22 +64,8 @@ func initFormNewInventory() {
 		}
 	})
 
-	formNewInventory.AddCheckbox("Modify node hostname with prefix", modifyNodeHostname, func(checked bool) {
-		modifyNodeHostname = true
-		formNewInventory.Clear(true)
-		initFormNewInventory()
-	})
-
 	formNewInventory.AddInputField("Hostname prefix: ", "node", 20, nil, func(text string) {
 		nodeHostnamePrefix = text
-	})
-	inputFieldPrefix := formNewInventory.GetFormItemByLabel("Hostname prefix: ")
-	inputFieldPrefix.SetDisabled(!modifyNodeHostname)
-
-	formNewInventory.AddCheckbox("Use current node hostname", !modifyNodeHostname, func(checked bool) {
-		modifyNodeHostname = false
-		formNewInventory.Clear(true)
-		initFormNewInventory()
 	})
 
 	formNewInventory.AddButton("OK", func() {
@@ -91,7 +77,7 @@ func initFormNewInventory() {
 					initFormNewInventory()
 					pages.SwitchToPage("New Inventory")
 				})
-		} else if modifyNodeHostname && nodeHostnamePrefix == "" {
+		} else if nodeHostnamePrefix == "" {
 			showErrorModal("Please provide hostname prefix.",
 				func(buttonIndex int, buttonLabel string) {
 					formNewInventory.Clear(true)
@@ -131,7 +117,7 @@ func initFlexEditInventory() {
 			// todo:
 		}).
 		AddButton("Save", func() {
-			// todo:
+			saveInventory()
 		})
 	flexLeft := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(listHosts, 0, 1, true).
@@ -160,11 +146,8 @@ func populateInventory() {
 	cmd := exec.Command("/bin/sh", "-c", "python3 "+filepath.Join(kubesprayPath, inventoryBuilder)+" "+ips)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "CONFIG_FILE="+inventoryFile)
-	if modifyNodeHostname {
-		cmd.Env = append(cmd.Env, "HOST_PREFIX="+nodeHostnamePrefix, "USE_REAL_HOSTNAME=False")
-	} else {
-		cmd.Env = append(cmd.Env, "USE_REAL_HOSTNAME=True")
-	}
+	cmd.Env = append(cmd.Env, "HOST_PREFIX="+nodeHostnamePrefix)
+
 	err := cmd.Run()
 	check(err)
 

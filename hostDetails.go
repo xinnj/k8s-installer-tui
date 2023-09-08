@@ -1,7 +1,9 @@
 package main
 
 import (
+	"github.com/rivo/tview"
 	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v3"
 	"strings"
 )
 
@@ -13,6 +15,8 @@ type HostDetails struct {
 	Groups       []string
 	Node_labels  map[string]string
 }
+
+var tmpNodeLabels string
 
 func initFormHostDetails(hostname string) {
 	getHostDetails(hostname)
@@ -36,26 +40,27 @@ func initFormHostDetails(hostname string) {
 
 	formHostDetails.AddTextView("Groups: ", strings.Join(hostDetails.Groups, "\n"), 0, 0, false, false)
 	formHostDetails.AddButton("Edit Groups", func() {
-		formEditGroups.Clear(true)
 		initFormEditGroups()
 		pages.SwitchToPage("Edit Groups")
 	})
 
-	var labels string
-	for key, value := range hostDetails.Node_labels {
-		if labels != "" {
-			labels = labels + "\n"
-		}
-		labels = labels + key + ": " + value
+	var labelsString string
+	if len(hostDetails.Node_labels) != 0 {
+		labels, err := yaml.Marshal(&hostDetails.Node_labels)
+		check(err)
+		labelsString = string(labels)
 	}
-	formHostDetails.AddTextView("Node Labels: ", labels, 0, 0, false, false)
+	formHostDetails.AddTextView("Node Labels: ", labelsString, 0, 0, false, false)
 	formHostDetails.AddButton("Edit Node Labels", func() {
-		initFormEditGroups()
-		pages.SwitchToPage("Edit Groups")
+		flexEditNodeLabels.Clear()
+		initFlexEditNodeLabels()
+		pages.SwitchToPage("Edit Node Labels")
 	})
 }
 
 func initFormEditGroups() {
+	formEditGroups.Clear(true)
+
 	var newGroups []string
 	checkedMap := map[string]string{}
 	for _, group := range hostDetails.Groups {
@@ -63,6 +68,8 @@ func initFormEditGroups() {
 	}
 
 	formEditGroups.SetTitle("Edit Group").SetBorder(true)
+	formEditGroups.AddTextView("Hostname: ", hostDetails.Hostname, 0, 3, false, false)
+
 	formEditGroups.AddCheckbox("kube_control_plane", slices.Contains(hostDetails.Groups, "kube_control_plane"), func(checked bool) {
 		if checked {
 			checkedMap["kube_control_plane"] = "checked"
@@ -93,7 +100,7 @@ func initFormEditGroups() {
 	})
 
 	formEditGroups.AddButton("OK", func() {
-		for key, _ := range checkedMap {
+		for key := range checkedMap {
 			newGroups = append(newGroups, key)
 		}
 		hostDetails.Groups = newGroups
@@ -107,6 +114,71 @@ func initFormEditGroups() {
 	formEditGroups.AddButton("Cancel", func() {
 		pages.SwitchToPage("Edit Inventory")
 	})
+}
+
+func initFlexEditNodeLabels() {
+	flexEditNodeLabels.SetTitle("Edit Node Labels").SetBorder(true)
+
+	formEditLabels := tview.NewForm()
+	formEditLabels.SetBorder(true)
+	formEditLabels.AddTextView("Hostname: ", hostDetails.Hostname, 0, 3, false, false)
+
+	if tmpNodeLabels == "" && len(hostDetails.Node_labels) != 0 {
+		labels, err := yaml.Marshal(&hostDetails.Node_labels)
+		check(err)
+		tmpNodeLabels = string(labels)
+	}
+
+	formEditLabels.AddTextArea("Node Labels: ", tmpNodeLabels, 0, 0, 0, func(text string) {
+		tmpNodeLabels = text
+	})
+
+	formEditLabels.AddButton("OK", func() {
+		var newLabels map[string]string
+		err := yaml.Unmarshal([]byte(tmpNodeLabels), &newLabels)
+		if err != nil {
+			showErrorModal("Node label format is wrong.",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Edit Node Labels")
+				})
+		} else {
+			hostDetails.Node_labels = newLabels
+			writeBackHostDetails()
+			tmpNodeLabels = ""
+			formHostDetails.Clear(true)
+			initFormHostDetails(hostDetails.Hostname)
+			pages.SwitchToPage("Edit Inventory")
+		}
+	})
+
+	formEditLabels.AddButton("Cancel", func() {
+		tmpNodeLabels = ""
+		pages.SwitchToPage("Edit Inventory")
+	})
+
+	formPredefinedLabels := tview.NewForm()
+	formPredefinedLabels.SetBorder(true)
+	var options []string
+	for key, value := range appConfig.Predefined_node_labels {
+		options = append(options, key+": "+value)
+	}
+	slices.Sort(options)
+	var selectedLabel string
+	formPredefinedLabels.AddDropDown("Predefined Labels", options, -1, func(option string, optionIndex int) {
+		selectedLabel = option
+	})
+
+	formPredefinedLabels.AddButton("Add", func() {
+		if selectedLabel != "" {
+			tmpNodeLabels = tmpNodeLabels + selectedLabel + "\n"
+			flexEditNodeLabels.Clear()
+			initFlexEditNodeLabels()
+		}
+	})
+
+	flexEditNodeLabels.
+		AddItem(formEditLabels, 0, 2, true).
+		AddItem(formPredefinedLabels, 0, 1, false)
 }
 
 func getHostDetails(hostname string) {
