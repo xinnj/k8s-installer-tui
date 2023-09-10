@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"github.com/rivo/tview"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -8,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -86,7 +88,7 @@ func initFormNewInventory() {
 				})
 		} else {
 			populateInventory()
-			initFlexEditInventory()
+			initFlexEditInventory("")
 			pages.SwitchToPage("Edit Inventory")
 		}
 	})
@@ -95,7 +97,7 @@ func initFormNewInventory() {
 	})
 }
 
-func initFlexEditInventory() {
+func initFlexEditInventory(selectedHostname string) {
 	formHostDetails.SetBorder(true)
 
 	listHosts := tview.NewList().ShowSecondaryText(false)
@@ -107,14 +109,24 @@ func initFlexEditInventory() {
 		formHostDetails.Clear(true)
 		initFormHostDetails(hostname)
 	})
-	host, _ := listHosts.GetItemText(0)
-	hostname := strings.Split(host, ":")[0]
+
+	var hostname string
+	if selectedHostname == "" {
+		host, _ := listHosts.GetItemText(0)
+		hostname = strings.Split(host, ":")[0]
+	} else {
+		selectedIndex := listHosts.FindItems(selectedHostname, "", false, false)
+		listHosts.SetCurrentItem(selectedIndex[0])
+		hostname = selectedHostname
+	}
 	formHostDetails.Clear(true)
 	initFormHostDetails(hostname)
 
 	formLeft := tview.NewForm().
 		AddButton("Add Node", func() {
-			// todo:
+			formAddHost.Clear(true)
+			initFormAddHost()
+			pages.SwitchToPage("Add Host")
 		}).
 		AddButton("Save", func() {
 			saveInventory()
@@ -138,6 +150,63 @@ func initFlexEditInventory() {
 	flexEditInventory.SetDirection(tview.FlexRow).
 		AddItem(flexUp, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
+}
+
+func initFormAddHost() {
+	var newHostDetails HostDetails
+	formAddHost.SetTitle("Add Host").SetBorder(true)
+
+	hostname, err := getNextHostname()
+	newHostDetails.Hostname = hostname
+	if err == nil {
+		formAddHost.AddTextView("Hostname: ", newHostDetails.Hostname, 0, 3, false, false)
+	} else {
+		formAddHost.AddInputField("Hostname: ", "", 0, nil, func(text string) {
+			newHostDetails.Hostname = text
+		})
+	}
+
+	formAddHost.AddInputField("IP: ", "", 0, nil, func(text string) {
+		newHostDetails.Ansible_host = text
+		newHostDetails.Ip = text
+		newHostDetails.Access_ip = text
+	})
+
+	formAddHost.AddButton("OK", func() {
+		if newHostDetails.Hostname == "" {
+			showErrorModal("Please provide hostname.",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Add Host")
+				})
+		} else if newHostDetails.Ip == "" {
+			showErrorModal("Please provide IP address.",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Add Host")
+				})
+		} else {
+			currentHostsNum := len(inventory.All.Hosts)
+			switch currentHostsNum {
+			case 1:
+				newHostDetails.Groups = append(newHostDetails.Groups, "kube_control_plane")
+				newHostDetails.Groups = append(newHostDetails.Groups, "kube_node")
+			case 2:
+				newHostDetails.Groups = append(newHostDetails.Groups, "etcd")
+				newHostDetails.Groups = append(newHostDetails.Groups, "kube_node")
+			default:
+				newHostDetails.Groups = append(newHostDetails.Groups, "kube_node")
+			}
+
+			hostDetails = newHostDetails
+			writeBackHostDetails()
+			flexEditInventory.Clear()
+			initFlexEditInventory(newHostDetails.Hostname)
+			pages.SwitchToPage("Edit Inventory")
+		}
+	})
+
+	formAddHost.AddButton("Cancel", func() {
+		pages.SwitchToPage("Edit Inventory")
+	})
 }
 
 func populateInventory() {
@@ -187,4 +256,30 @@ func getHostsList() []string {
 	slices.Sort(hostsList)
 
 	return hostsList
+}
+
+func getNextHostname() (string, error) {
+	hostnamePrefix := ""
+	highestHostid := 0
+
+	re := regexp.MustCompile("^(.+?)(\\d+)$")
+	for name := range inventory.All.Hosts {
+		shortHostname := strings.Split(name, ".")[0]
+		matches := re.FindStringSubmatch(shortHostname)
+		if matches == nil {
+			return "", errors.New("Can't match shortHostname.")
+		}
+
+		hostnamePrefix = matches[1]
+		hostId, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return "", err
+		}
+
+		if hostId > highestHostid {
+			highestHostid = hostId
+		}
+	}
+
+	return hostnamePrefix + strconv.Itoa(highestHostid+1), nil
 }

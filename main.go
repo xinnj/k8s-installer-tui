@@ -34,6 +34,7 @@ var formHostDetails = tview.NewForm()
 var hostDetails HostDetails
 var formEditGroups = tview.NewForm()
 var flexEditNodeLabels = tview.NewFlex()
+var formAddHost = tview.NewForm()
 
 func check(e error) {
 	if e != nil {
@@ -162,7 +163,7 @@ func initFormProject() {
 				})
 		} else {
 			loadInventory()
-			initFlexEditInventory()
+			initFlexEditInventory("")
 			pages.SwitchToPage("Edit Inventory")
 		}
 	})
@@ -190,6 +191,7 @@ func main() {
 	pages.AddPage("Edit Inventory", flexEditInventory, true, false)
 	pages.AddPage("Edit Groups", formEditGroups, true, false)
 	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
+	pages.AddPage("Add Host", formAddHost, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
