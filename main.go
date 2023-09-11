@@ -14,6 +14,8 @@ const pythonRequirements = "requirements-2.12.txt"
 
 type AppConfig struct {
 	Predefined_node_labels map[string]string
+	Default_vars           map[string]interface{}
+	Configuable_vars       map[string]interface{}
 }
 
 var appPath string
@@ -35,6 +37,7 @@ var hostDetails HostDetails
 var formEditGroups = tview.NewForm()
 var flexEditNodeLabels = tview.NewFlex()
 var formAddHost = tview.NewForm()
+var formFeatures = tview.NewForm()
 
 func check(e error) {
 	if e != nil {
@@ -192,6 +195,7 @@ func main() {
 	pages.AddPage("Edit Groups", formEditGroups, true, false)
 	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
 	pages.AddPage("Add Host", formAddHost, true, false)
+	pages.AddPage("Features", formFeatures, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)

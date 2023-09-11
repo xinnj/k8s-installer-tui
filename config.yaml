@@ -1,3 +1,32 @@
 predefined_node_labels:
   vm-agent: true
   test-label:
+default_vars:
+  download_run_once: true
+  download_localhost: true
+  download_force_cache: true
+  download_keep_remote_cache: false
+  download_cache_dir: /tmp/kubespray_cache
+  container_manager_on_localhost: 'docker'
+  image_command_tool_on_localhost: 'docker'
+  calico_vxlan_mode: 'CrossSubnet'
+  helm_enabled: true
+  ingress_nginx_enabled: true
+  metrics_server_enabled: true
+  krew_enabled: true
+configuable_vars:
+  set_firewall_rules: true
+  install_nfs_client: true
+  install_qemu: true
+  containerd_insecure_registries:
+    "nexus-docker-5000:5000": "http://nexus-docker-5000:5000"
+  loadbalancer_apiserver_localhost: false
+  kube_vip_enabled: true
+  kube_vip_controlplane_enabled: true
+  kube_vip_arp_enabled: true
+  kube_proxy_strict_arp: true
+  kube_vip_lb_enable: true
+  loadbalancer_apiserver:
+    address:
+    port: 6443
+  kube_vip_address:

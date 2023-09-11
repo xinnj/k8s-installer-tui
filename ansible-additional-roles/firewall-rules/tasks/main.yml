@@ -1,0 +1,61 @@
+---
+- name: Gather host facts to get ansible_os_family
+  setup:
+    gather_subset: '!all'
+    filter: ansible_*
+
+- name: get service facts
+  ansible.builtin.service_facts:
+
+- name: Set rules for 'RedHat' family - public service
+  ansible.builtin.shell:
+    cmd: "firewall-cmd --permanent --zone=public --add-service=http --add-service=https"
+  when: ansible_facts.services["firewalld.service"]['state'] == 'running'
+
+- name: Set rules for 'RedHat' family - public port
+  ansible.builtin.shell:
+    cmd: "firewall-cmd --permanent --zone=public --add-port={{ kube_apiserver_node_port_range }}/{tcp,udp}
+      --add-port={{ loadbalancer_apiserver_port }}/tcp"
+  when: ansible_facts.services["firewalld.service"]['state'] == 'running'
+
+- name: Set rules for 'RedHat' family - internal subset
+  ansible.builtin.shell:
+    cmd: "firewall-cmd --permanent --zone=trusted --add-source={{ item }}"
+  when: ansible_facts.services["firewalld.service"]['state'] == 'running'
+  with_items:
+    - "{{ kube_service_addresses }}"
+    - "{{ kube_pods_subnet }}"
+
+- name: Set rules for 'RedHat' family - hosts
+  ansible.builtin.shell:
+    cmd: "firewall-cmd --permanent --zone=trusted
+      --add-source={{ hostvars[item]['ip'] if hostvars[item]['ip'] is defined else hostvars[item]['ansible_host'] }}"
+  when: ansible_facts.services["firewalld.service"]['state'] == 'running'
+  with_items: "{{ groups['all'] }}"
+
+- name: Set rules for 'RedHat' family - reload
+  ansible.builtin.shell:
+    cmd: "firewall-cmd --reload"
+  when: ansible_facts.services["firewalld.service"]['state'] == 'running'
+
+- name: Set rules for 'Debian' family - public
+  ansible.builtin.shell:
+    cmd: "ufw allow http && ufw allow https
+      && ufw allow {{ kube_apiserver_node_port_range | replace('-',':') }}/tcp
+      && ufw allow {{ kube_apiserver_node_port_range | replace('-',':') }}/udp
+      && ufw allow {{ loadbalancer_apiserver_port }}/tcp"
+  when: "ansible_os_family == 'Debian'"
+
+- name: Set rules for 'Debian' family - internal subset
+  ansible.builtin.shell:
+    cmd: "ufw allow from {{ item }}"
+  when: "ansible_os_family == 'Debian'"
+  with_items:
+    - "{{ kube_service_addresses }}"
+    - "{{ kube_pods_subnet }}"
+
+- name: Set rules for 'Debian' family - hosts
+  ansible.builtin.shell:
+    cmd: "ufw allow from {{ hostvars[item]['ip'] if hostvars[item]['ip'] is defined else hostvars[item]['ansible_host'] }}"
+  when: "ansible_os_family == 'Debian'"
+  with_items: "{{ groups['all'] }}"

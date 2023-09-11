@@ -141,8 +141,16 @@ func initFlexEditInventory(selectedHostname string) {
 		AddItem(formHostDetails, 0, 2, false)
 
 	formDown := tview.NewForm()
-	formDown.AddButton("Next", nil)
-	formDown.AddButton("Cancel", nil)
+	formDown.AddButton("Next", func() {
+		saveInventory()
+		formFeatures.Clear(true)
+		initFormFeatures()
+		pages.SwitchToPage("Features")
+	})
+	formDown.AddButton("Cancel", func() {
+		formProject.Clear(true)
+		pages.SwitchToPage("Project")
+	})
 
 	flexEditInventory.SetTitle("Edit Inventory")
 	flexEditInventory.SetBorder(true)
@@ -225,6 +233,8 @@ func populateInventory() {
 
 	err = yaml.Unmarshal(data, &inventory)
 	check(err)
+
+	inventory.All.Vars = appConfig.Configuable_vars
 }
 
 func saveInventory() {
