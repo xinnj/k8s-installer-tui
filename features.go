@@ -81,6 +81,9 @@ func initFlexFeatures() {
 		}
 
 		saveInventory()
+		flexHaMode.Clear()
+		initFlexHaMode()
+		pages.SwitchToPage("HA Mode")
 	})
 
 	formDown.AddButton("Cancel", func() {

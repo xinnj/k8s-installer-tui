@@ -198,7 +198,7 @@ func main() {
 	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
 	pages.AddPage("Add Host", formAddHost, true, false)
 	pages.AddPage("Features", flexFeatures, true, false)
-	pages.AddPage("Features", flexHaMode, true, false)
+	pages.AddPage("HA Mode", flexHaMode, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
