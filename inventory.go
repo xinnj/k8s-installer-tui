@@ -27,25 +27,25 @@ type Inventory struct {
 		Hosts    map[string]Host
 		Children struct {
 			Kube_control_plane struct {
-				Hosts map[string]map[interface{}]interface{}
+				Hosts map[string]map[any]any
 			}
 			Kube_node struct {
-				Hosts map[string]map[interface{}]interface{}
+				Hosts map[string]map[any]any
 			}
 			Etcd struct {
-				Hosts map[string]map[interface{}]interface{}
+				Hosts map[string]map[any]any
 			}
 			K8s_cluster struct {
 				Children struct {
-					Kube_control_plane map[string]interface{}
-					Kube_node          map[string]interface{}
+					Kube_control_plane map[string]any
+					Kube_node          map[string]any
 				}
 			}
 			Calico_rr struct {
-				Hosts map[string]map[interface{}]interface{}
+				Hosts map[string]map[any]any
 			}
 		}
-		Vars map[string]interface{}
+		Vars map[string]any
 	}
 }
 
@@ -139,21 +139,18 @@ func initFlexEditInventory(selectedHostname string) {
 	flexUp := tview.NewFlex().
 		AddItem(flexLeft, 0, 1, true).
 		AddItem(formHostDetails, 0, 2, false)
+	flexUp.SetTitle("Edit Hosts").SetBorder(true)
 
 	formDown := tview.NewForm()
-	formDown.AddButton("Next", func() {
+	formDown.AddButton("Save & Next", func() {
 		saveInventory()
-		formFeatures.Clear(true)
-		initFormFeatures()
+		flexFeatures.Clear()
+		initFlexFeatures()
 		pages.SwitchToPage("Features")
 	})
 	formDown.AddButton("Cancel", func() {
-		formProject.Clear(true)
 		pages.SwitchToPage("Project")
 	})
-
-	flexEditInventory.SetTitle("Edit Inventory")
-	flexEditInventory.SetBorder(true)
 
 	flexEditInventory.SetDirection(tview.FlexRow).
 		AddItem(flexUp, 0, 1, true).
@@ -234,7 +231,7 @@ func populateInventory() {
 	err = yaml.Unmarshal(data, &inventory)
 	check(err)
 
-	inventory.All.Vars = appConfig.Configuable_vars
+	inventory.All.Vars = make(map[string]any)
 }
 
 func saveInventory() {

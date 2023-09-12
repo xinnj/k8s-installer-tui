@@ -14,8 +14,8 @@ const pythonRequirements = "requirements-2.12.txt"
 
 type AppConfig struct {
 	Predefined_node_labels map[string]string
-	Default_vars           map[string]interface{}
-	Configuable_vars       map[string]interface{}
+	Default_vars           map[string]any
+	Configuable_vars       []map[string]any
 }
 
 var appPath string
@@ -37,7 +37,8 @@ var hostDetails HostDetails
 var formEditGroups = tview.NewForm()
 var flexEditNodeLabels = tview.NewFlex()
 var formAddHost = tview.NewForm()
-var formFeatures = tview.NewForm()
+var flexFeatures = tview.NewFlex()
+var flexHaMode = tview.NewFlex()
 
 func check(e error) {
 	if e != nil {
@@ -76,7 +77,7 @@ func findKubesprayPath() {
 
 // Todo: mirror configurable
 func installDependencies() {
-	_, err := os.Stat(filepath.Join(appPath, ".dependencies-installed"))
+	_, err := os.Stat("/root/.kubespray-dependencies-installed")
 	if err == nil {
 		findKubesprayPath()
 		return
@@ -111,7 +112,7 @@ func installDependencies() {
 		}
 	}
 
-	file, err := os.Create(filepath.Join(appPath, ".dependencies-installed"))
+	file, err := os.Create("/root/.kubespray-dependencies-installed")
 	check(err)
 	err = file.Close()
 	check(err)
@@ -166,6 +167,7 @@ func initFormProject() {
 				})
 		} else {
 			loadInventory()
+			flexEditInventory.Clear()
 			initFlexEditInventory("")
 			pages.SwitchToPage("Edit Inventory")
 		}
@@ -195,7 +197,8 @@ func main() {
 	pages.AddPage("Edit Groups", formEditGroups, true, false)
 	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
 	pages.AddPage("Add Host", formAddHost, true, false)
-	pages.AddPage("Features", formFeatures, true, false)
+	pages.AddPage("Features", flexFeatures, true, false)
+	pages.AddPage("Features", flexHaMode, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)

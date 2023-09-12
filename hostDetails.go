@@ -212,22 +212,22 @@ func writeBackHostDetails() {
 	h.Node_labels = hostDetails.Node_labels
 
 	if slices.Contains(hostDetails.Groups, "kube_control_plane") {
-		inventory.All.Children.Kube_control_plane.Hosts[hostDetails.Hostname] = make(map[interface{}]interface{})
+		inventory.All.Children.Kube_control_plane.Hosts[hostDetails.Hostname] = make(map[any]any)
 	} else {
 		delete(inventory.All.Children.Kube_control_plane.Hosts, hostDetails.Hostname)
 	}
 	if slices.Contains(hostDetails.Groups, "kube_node") {
-		inventory.All.Children.Kube_node.Hosts[hostDetails.Hostname] = make(map[interface{}]interface{})
+		inventory.All.Children.Kube_node.Hosts[hostDetails.Hostname] = make(map[any]any)
 	} else {
 		delete(inventory.All.Children.Kube_node.Hosts, hostDetails.Hostname)
 	}
 	if slices.Contains(hostDetails.Groups, "etcd") {
-		inventory.All.Children.Etcd.Hosts[hostDetails.Hostname] = make(map[interface{}]interface{})
+		inventory.All.Children.Etcd.Hosts[hostDetails.Hostname] = make(map[any]any)
 	} else {
 		delete(inventory.All.Children.Etcd.Hosts, hostDetails.Hostname)
 	}
 	if slices.Contains(hostDetails.Groups, "calico_rr") {
-		inventory.All.Children.Calico_rr.Hosts[hostDetails.Hostname] = make(map[interface{}]interface{})
+		inventory.All.Children.Calico_rr.Hosts[hostDetails.Hostname] = make(map[any]any)
 	} else {
 		delete(inventory.All.Children.Calico_rr.Hosts, hostDetails.Hostname)
 	}
