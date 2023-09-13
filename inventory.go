@@ -222,8 +222,7 @@ func populateInventory() {
 	cmd.Env = append(cmd.Env, "CONFIG_FILE="+inventoryFile)
 	cmd.Env = append(cmd.Env, "HOST_PREFIX="+nodeHostnamePrefix)
 
-	err := cmd.Run()
-	check(err)
+	execCommand(cmd)
 
 	data, err := os.ReadFile(inventoryFile)
 	check(err)
@@ -241,16 +240,6 @@ func saveInventory() {
 	check(err)
 
 	err = os.WriteFile(inventoryFile, data, 0644)
-	check(err)
-}
-
-func loadInventory() {
-	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
-
-	data, err := os.ReadFile(inventoryFile)
-	check(err)
-
-	err = yaml.Unmarshal(data, &inventory)
 	check(err)
 }
 

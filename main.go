@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const pythonRequirements = "requirements-2.12.txt"
@@ -42,7 +43,16 @@ var flexHaMode = tview.NewFlex()
 
 func check(e error) {
 	if e != nil {
+		app.Stop()
 		panic(e)
+	}
+}
+
+func execCommand(cmd *exec.Cmd) {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		app.Stop()
+		panic(string(output))
 	}
 }
 
@@ -77,7 +87,7 @@ func findKubesprayPath() {
 
 // Todo: mirror configurable
 func installDependencies() {
-	_, err := os.Stat("/root/.kubespray-dependencies-installed")
+	_, err := os.Stat("/root/.idocluster-dependencies-installed")
 	if err == nil {
 		findKubesprayPath()
 		return
@@ -91,11 +101,7 @@ func installDependencies() {
 	if matches == nil {
 		panic("Can't find kubespray archive file.")
 	}
-	output, err := exec.Command("tar", "xvf", matches[0]).CombinedOutput()
-	if err != nil {
-		fmt.Printf("%s\n", output)
-		check(err)
-	}
+	execCommand(exec.Command("tar", "xvf", matches[0]))
 
 	findKubesprayPath()
 
@@ -105,14 +111,10 @@ func installDependencies() {
 		{"/bin/sh", "-c", "pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + " -i https://pypi.tuna.tsinghua.edu.cn/simple"}}
 	for _, cmd := range cmds {
 		fmt.Println(cmd)
-		output, err := exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
-		if err != nil {
-			fmt.Printf("%s\n", output)
-			check(err)
-		}
+		execCommand(exec.Command(cmd[0], cmd[1:]...))
 	}
 
-	file, err := os.Create("/root/.kubespray-dependencies-installed")
+	file, err := os.Create("/root/.idocluster-dependencies-installed")
 	check(err)
 	err = file.Close()
 	check(err)
@@ -135,29 +137,63 @@ func showErrorModal(text string, handler func(buttonIndex int, buttonLabel strin
 func initFormProject() {
 	formProject.SetTitle("Project")
 	formProject.SetBorder(true)
-	formProject.AddInputField("Project path:", "", 0, nil, func(path string) {
+
+	if projectPath == "" {
+		projectPath = "/root/idocluster"
+	}
+	formProject.AddInputField("Project path:", projectPath, 0, nil, func(path string) {
 		projectPath = path
 	})
+
 	formProject.AddButton("New", func() {
 		if projectPath == "" {
 			showErrorModal("Please provide project path.",
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Project")
 				})
-		} else {
-			err := os.MkdirAll(projectPath, 0755)
+			return
+		}
+
+		_, err := os.Stat(projectPath)
+		// Path exists
+		if err == nil {
+			// Remove existing backup folder first
+			backupPath := strings.TrimSuffix(projectPath, "/") + ".bak"
+			err = os.RemoveAll(backupPath)
 			if err != nil {
-				showErrorModal("Can't create path: "+projectPath,
+				showErrorModal("Can't remove backup path: "+backupPath,
 					func(buttonIndex int, buttonLabel string) {
 						pages.SwitchToPage("Project")
 					})
+				return
 			}
 
-			nodeHostnamePrefix = "node"
-			formNewInventory.Clear(true)
-			initFormNewInventory()
-			pages.SwitchToPage("New Inventory")
+			// Backup existing project path
+			err = os.Rename(projectPath, backupPath)
+			if err != nil {
+				showErrorModal("Can't backup path: "+projectPath,
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("Project")
+					})
+				return
+			}
 		}
+
+		err = os.MkdirAll(projectPath, 0755)
+		if err != nil {
+			showErrorModal("Can't create path: "+projectPath,
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Project")
+				})
+			return
+		}
+
+		execCommand(exec.Command("/bin/sh", "-c", "cp -a "+filepath.Join(appPath, "inventory/sample/*")+" "+projectPath))
+
+		nodeHostnamePrefix = "node"
+		formNewInventory.Clear(true)
+		initFormNewInventory()
+		pages.SwitchToPage("New Inventory")
 	})
 	formProject.AddButton("Load", func() {
 		if projectPath == "" {
@@ -166,7 +202,26 @@ func initFormProject() {
 					pages.SwitchToPage("Project")
 				})
 		} else {
-			loadInventory()
+			inventoryFile = filepath.Join(projectPath, "hosts.yaml")
+
+			data, err := os.ReadFile(inventoryFile)
+			if err != nil {
+				showErrorModal("Can't find file: "+inventoryFile,
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("Project")
+					})
+				return
+			}
+
+			err = yaml.Unmarshal(data, &inventory)
+			if err != nil {
+				showErrorModal("Can't parse file: "+inventoryFile,
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("Project")
+					})
+				return
+			}
+
 			flexEditInventory.Clear()
 			initFlexEditInventory("")
 			pages.SwitchToPage("Edit Inventory")
