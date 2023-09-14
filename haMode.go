@@ -12,12 +12,21 @@ func initFlexHaMode() {
 	formHaMode.SetTitle("Set HA Mode").SetBorder(true)
 
 	if haMode == "" {
-		haMode = "localhost loadbalancing"
+		if inventory.All.Vars["loadbalancer_apiserver_localhost"] == nil || inventory.All.Vars["loadbalancer_apiserver_localhost"].(bool) {
+			haMode = "localhost loadbalancing"
+		} else {
+			haMode = "kube-vip"
+			vip = inventory.All.Vars["kube_vip_address"].(string)
+		}
 	}
 
 	formHaMode.AddCheckbox("localhost loadbalancing: ", haMode == "localhost loadbalancing", func(checked bool) {
 		if checked {
 			haMode = "localhost loadbalancing"
+			flexHaMode.Clear()
+			initFlexHaMode()
+		} else {
+			haMode = "kube-vip"
 			flexHaMode.Clear()
 			initFlexHaMode()
 		}
@@ -26,6 +35,10 @@ func initFlexHaMode() {
 	formHaMode.AddCheckbox("kube-vip: ", haMode == "kube-vip", func(checked bool) {
 		if checked {
 			haMode = "kube-vip"
+			flexHaMode.Clear()
+			initFlexHaMode()
+		} else {
+			haMode = "localhost loadbalancing"
 			flexHaMode.Clear()
 			initFlexHaMode()
 		}
@@ -49,14 +62,13 @@ func initFlexHaMode() {
 			delete(inventory.All.Vars, "kube_vip_lb_enable")
 			delete(inventory.All.Vars, "loadbalancer_apiserver")
 			delete(inventory.All.Vars, "kube_vip_address")
-
-			saveInventory()
 		} else {
 			if vip == "" {
 				showErrorModal("Please provide VIP.",
 					func(buttonIndex int, buttonLabel string) {
 						pages.SwitchToPage("HA Mode")
 					})
+				return
 			} else {
 				inventory.All.Vars["loadbalancer_apiserver_localhost"] = false
 				inventory.All.Vars["kube_vip_enabled"] = true
@@ -67,14 +79,19 @@ func initFlexHaMode() {
 				inventory.All.Vars["kube_vip_address"] = vip
 				apiServer := map[string]string{"address": vip, "port": "6443"}
 				inventory.All.Vars["loadbalancer_apiserver"] = apiServer
-
-				saveInventory()
-
 			}
 		}
+
+		saveInventory()
+
+		flexMirror.Clear()
+		initFlexMirror()
+		pages.SwitchToPage("Mirror")
 	})
 
 	formDown.AddButton("Cancel", func() {
+		haMode = ""
+		vip = ""
 		pages.SwitchToPage("Features")
 	})
 

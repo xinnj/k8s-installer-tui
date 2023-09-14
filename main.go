@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 const pythonRequirements = "requirements-2.12.txt"
@@ -17,6 +16,7 @@ type AppConfig struct {
 	Predefined_node_labels map[string]string
 	Default_vars           map[string]any
 	Configuable_vars       []map[string]any
+	Default_mirrors        []map[string]string
 }
 
 var appPath string
@@ -25,7 +25,7 @@ var appConfig AppConfig
 var app = tview.NewApplication()
 var pages = tview.NewPages()
 var formProject = tview.NewForm()
-var formNewInventory = tview.NewForm()
+var formNewProject = tview.NewForm()
 var projectPath string
 var inventoryFile string
 var nodeIps []string
@@ -40,6 +40,7 @@ var flexEditNodeLabels = tview.NewFlex()
 var formAddHost = tview.NewForm()
 var flexFeatures = tview.NewFlex()
 var flexHaMode = tview.NewFlex()
+var flexMirror = tview.NewFlex()
 
 func check(e error) {
 	if e != nil {
@@ -134,104 +135,6 @@ func showErrorModal(text string, handler func(buttonIndex int, buttonLabel strin
 	pages.SwitchToPage("Error")
 }
 
-func initFormProject() {
-	formProject.SetTitle("Project")
-	formProject.SetBorder(true)
-
-	if projectPath == "" {
-		projectPath = "/root/idocluster"
-	}
-	formProject.AddInputField("Project path:", projectPath, 0, nil, func(path string) {
-		projectPath = path
-	})
-
-	formProject.AddButton("New", func() {
-		if projectPath == "" {
-			showErrorModal("Please provide project path.",
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Project")
-				})
-			return
-		}
-
-		_, err := os.Stat(projectPath)
-		// Path exists
-		if err == nil {
-			// Remove existing backup folder first
-			backupPath := strings.TrimSuffix(projectPath, "/") + ".bak"
-			err = os.RemoveAll(backupPath)
-			if err != nil {
-				showErrorModal("Can't remove backup path: "+backupPath,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-
-			// Backup existing project path
-			err = os.Rename(projectPath, backupPath)
-			if err != nil {
-				showErrorModal("Can't backup path: "+projectPath,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-		}
-
-		err = os.MkdirAll(projectPath, 0755)
-		if err != nil {
-			showErrorModal("Can't create path: "+projectPath,
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Project")
-				})
-			return
-		}
-
-		execCommand(exec.Command("/bin/sh", "-c", "cp -a "+filepath.Join(appPath, "inventory/sample/*")+" "+projectPath))
-
-		nodeHostnamePrefix = "node"
-		formNewInventory.Clear(true)
-		initFormNewInventory()
-		pages.SwitchToPage("New Inventory")
-	})
-	formProject.AddButton("Load", func() {
-		if projectPath == "" {
-			showErrorModal("Please provide project path.",
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Project")
-				})
-		} else {
-			inventoryFile = filepath.Join(projectPath, "hosts.yaml")
-
-			data, err := os.ReadFile(inventoryFile)
-			if err != nil {
-				showErrorModal("Can't find file: "+inventoryFile,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-
-			err = yaml.Unmarshal(data, &inventory)
-			if err != nil {
-				showErrorModal("Can't parse file: "+inventoryFile,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-
-			flexEditInventory.Clear()
-			initFlexEditInventory("")
-			pages.SwitchToPage("Edit Inventory")
-		}
-	})
-	formProject.AddButton("Quit", func() {
-		app.Stop()
-	})
-}
-
 func main() {
 	checkRoot()
 
@@ -247,13 +150,14 @@ func main() {
 
 	pages.AddPage("Error", modalError, true, false)
 	pages.AddPage("Project", formProject, true, true)
-	pages.AddPage("New Inventory", formNewInventory, true, false)
+	pages.AddPage("New Inventory", formNewProject, true, false)
 	pages.AddPage("Edit Inventory", flexEditInventory, true, false)
 	pages.AddPage("Edit Groups", formEditGroups, true, false)
 	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
 	pages.AddPage("Add Host", formAddHost, true, false)
 	pages.AddPage("Features", flexFeatures, true, false)
 	pages.AddPage("HA Mode", flexHaMode, true, false)
+	pages.AddPage("Mirror", flexMirror, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
