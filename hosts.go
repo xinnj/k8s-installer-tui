@@ -64,7 +64,7 @@ func initFlexEditHosts(selectedHostname string) {
 		pages.SwitchToPage("Project")
 	})
 
-	flexEditInventory.SetDirection(tview.FlexRow).
+	flexEditHosts.SetDirection(tview.FlexRow).
 		AddItem(flexUp, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
 }
@@ -115,14 +115,14 @@ func initFormAddHost() {
 
 			hostDetails = newHostDetails
 			writeBackHostDetails()
-			flexEditInventory.Clear()
+			flexEditHosts.Clear()
 			initFlexEditHosts(newHostDetails.Hostname)
-			pages.SwitchToPage("Edit Inventory")
+			pages.SwitchToPage("Edit Hosts")
 		}
 	})
 
 	formAddHost.AddButton("Cancel", func() {
-		pages.SwitchToPage("Edit Inventory")
+		pages.SwitchToPage("Edit Hosts")
 	})
 }
 

@@ -26,15 +26,9 @@ var app = tview.NewApplication()
 var pages = tview.NewPages()
 var formProject = tview.NewForm()
 var formNewProject = tview.NewForm()
-var projectPath string
-var inventoryFile string
-var nodeIps []string
-var inventory = Inventory{}
 var modalError = tview.NewModal()
-var nodeHostnamePrefix string = "node"
-var flexEditInventory = tview.NewFlex()
+var flexEditHosts = tview.NewFlex()
 var formHostDetails = tview.NewForm()
-var hostDetails HostDetails
 var formEditGroups = tview.NewForm()
 var flexEditNodeLabels = tview.NewFlex()
 var formAddHost = tview.NewForm()
@@ -150,8 +144,8 @@ func main() {
 
 	pages.AddPage("Error", modalError, true, false)
 	pages.AddPage("Project", formProject, true, true)
-	pages.AddPage("New Inventory", formNewProject, true, false)
-	pages.AddPage("Edit Inventory", flexEditInventory, true, false)
+	pages.AddPage("New Project", formNewProject, true, false)
+	pages.AddPage("Edit Hosts", flexEditHosts, true, false)
 	pages.AddPage("Edit Groups", formEditGroups, true, false)
 	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
 	pages.AddPage("Add Host", formAddHost, true, false)

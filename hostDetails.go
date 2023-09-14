@@ -16,6 +16,7 @@ type HostDetails struct {
 	Node_labels  map[string]string
 }
 
+var hostDetails HostDetails
 var tmpNodeLabels string
 
 func initFormHostDetails(hostname string) {
@@ -108,11 +109,11 @@ func initFormEditGroups() {
 
 		formHostDetails.Clear(true)
 		initFormHostDetails(hostDetails.Hostname)
-		pages.SwitchToPage("Edit Inventory")
+		pages.SwitchToPage("Edit Hosts")
 	})
 
 	formEditGroups.AddButton("Cancel", func() {
-		pages.SwitchToPage("Edit Inventory")
+		pages.SwitchToPage("Edit Hosts")
 	})
 }
 
@@ -147,13 +148,13 @@ func initFlexEditNodeLabels() {
 			tmpNodeLabels = ""
 			formHostDetails.Clear(true)
 			initFormHostDetails(hostDetails.Hostname)
-			pages.SwitchToPage("Edit Inventory")
+			pages.SwitchToPage("Edit Hosts")
 		}
 	})
 
 	formEditLabels.AddButton("Cancel", func() {
 		tmpNodeLabels = ""
-		pages.SwitchToPage("Edit Inventory")
+		pages.SwitchToPage("Edit Hosts")
 	})
 
 	formPredefinedLabels := tview.NewForm()
@@ -168,7 +169,7 @@ func initFlexEditNodeLabels() {
 		selectedLabel = option
 	})
 
-	formPredefinedLabels.AddButton("Add", func() {
+	formPredefinedLabels.AddButton("<< Add", func() {
 		if selectedLabel != "" {
 			tmpNodeLabels = tmpNodeLabels + selectedLabel + "\n"
 			flexEditNodeLabels.Clear()

@@ -87,7 +87,7 @@ func initFlexFeatures() {
 	})
 
 	formDown.AddButton("Cancel", func() {
-		pages.SwitchToPage("Edit Inventory")
+		pages.SwitchToPage("Edit Hosts")
 	})
 
 	flexFeatures.SetDirection(tview.FlexRow).

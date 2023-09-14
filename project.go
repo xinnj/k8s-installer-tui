@@ -11,6 +11,12 @@ import (
 
 const inventoryBuilder = "contrib/inventory_builder/inventory.py"
 
+var inventoryFile string
+var nodeIps []string
+var inventory = Inventory{}
+var projectPath = "/root/idocluster"
+var nodeHostnamePrefix = "node"
+
 type Host struct {
 	Ansible_host string
 	Ip           string
@@ -49,9 +55,6 @@ func initFormProject() {
 	formProject.SetTitle("Project")
 	formProject.SetBorder(true)
 
-	if projectPath == "" {
-		projectPath = "/root/idocluster"
-	}
 	formProject.AddInputField("Project path:", projectPath, 0, nil, func(path string) {
 		projectPath = path
 	})
@@ -65,79 +68,45 @@ func initFormProject() {
 			return
 		}
 
-		_, err := os.Stat(projectPath)
-		// Path exists
-		if err == nil {
-			// Remove existing backup folder first
-			backupPath := strings.TrimSuffix(projectPath, "/") + ".bak"
-			err = os.RemoveAll(backupPath)
-			if err != nil {
-				showErrorModal("Can't remove backup path: "+backupPath,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-
-			// Backup existing project path
-			err = os.Rename(projectPath, backupPath)
-			if err != nil {
-				showErrorModal("Can't backup path: "+projectPath,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-		}
-
-		err = os.MkdirAll(projectPath, 0755)
-		if err != nil {
-			showErrorModal("Can't create path: "+projectPath,
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Project")
-				})
-			return
-		}
-
-		execCommand(exec.Command("/bin/sh", "-c", "cp -a "+filepath.Join(appPath, "inventory/sample/*")+" "+projectPath))
-
-		nodeHostnamePrefix = "node"
 		formNewProject.Clear(true)
 		initFormNewProject()
-		pages.SwitchToPage("New Inventory")
+		pages.SwitchToPage("New Project")
 	})
+
 	formProject.AddButton("Load", func() {
 		if projectPath == "" {
 			showErrorModal("Please provide project path.",
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Project")
 				})
-		} else {
-			inventoryFile = filepath.Join(projectPath, "hosts.yaml")
-
-			data, err := os.ReadFile(inventoryFile)
-			if err != nil {
-				showErrorModal("Can't find file: "+inventoryFile,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-
-			err = yaml.Unmarshal(data, &inventory)
-			if err != nil {
-				showErrorModal("Can't parse file: "+inventoryFile,
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("Project")
-					})
-				return
-			}
-
-			flexEditInventory.Clear()
-			initFlexEditHosts("")
-			pages.SwitchToPage("Edit Inventory")
+			return
 		}
+
+		inventoryFile = filepath.Join(projectPath, "hosts.yaml")
+		data, err := os.ReadFile(inventoryFile)
+		if err != nil {
+			showErrorModal("Can't find file: "+inventoryFile,
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Project")
+				})
+			return
+		}
+
+		err = yaml.Unmarshal(data, &inventory)
+		if err != nil {
+			showErrorModal("Can't parse file: "+inventoryFile,
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Project")
+				})
+			return
+		}
+
+		flexEditHosts.Clear()
+		initFlexEditHosts("")
+		pages.SwitchToPage("Edit Hosts")
+
 	})
+
 	formProject.AddButton("Quit", func() {
 		app.Stop()
 	})
@@ -166,26 +135,66 @@ func initFormNewProject() {
 
 	formNewProject.AddButton("OK", func() {
 		nodeHostnamePrefix = strings.Trim(nodeHostnamePrefix, " ")
+
 		if len(nodeIps) == 0 {
 			showErrorModal("Please provide IP address of each node.",
 				func(buttonIndex int, buttonLabel string) {
 					formNewProject.Clear(true)
 					initFormNewProject()
-					pages.SwitchToPage("New Inventory")
+					pages.SwitchToPage("New Project")
 				})
-		} else if nodeHostnamePrefix == "" {
+			return
+		}
+		if nodeHostnamePrefix == "" {
 			showErrorModal("Please provide hostname prefix.",
 				func(buttonIndex int, buttonLabel string) {
 					formNewProject.Clear(true)
 					initFormNewProject()
-					pages.SwitchToPage("New Inventory")
+					pages.SwitchToPage("New Project")
 				})
-		} else {
-			populateInventory()
-			initFlexEditHosts("")
-			pages.SwitchToPage("Edit Inventory")
+			return
 		}
+
+		_, err := os.Stat(projectPath)
+		// Path exists
+		if err == nil {
+			// Remove existing backup folder first
+			backupPath := strings.TrimSuffix(projectPath, "/") + ".bak"
+			err = os.RemoveAll(backupPath)
+			if err != nil {
+				showErrorModal("Can't remove backup path: "+backupPath,
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("New Project")
+					})
+				return
+			}
+
+			// Backup existing project path
+			err = os.Rename(projectPath, backupPath)
+			if err != nil {
+				showErrorModal("Can't backup path: "+projectPath,
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("New Project")
+					})
+				return
+			}
+		}
+
+		err = os.MkdirAll(projectPath, 0755)
+		if err != nil {
+			showErrorModal("Can't create path: "+projectPath,
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("New Project")
+				})
+			return
+		}
+
+		execCommand(exec.Command("/bin/sh", "-c", "cp -a "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath))
+		populateInventory()
+		initFlexEditHosts("")
+		pages.SwitchToPage("Edit Hosts")
 	})
+
 	formNewProject.AddButton("Cancel", func() {
 		pages.SwitchToPage("Project")
 	})
