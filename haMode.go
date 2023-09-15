@@ -69,17 +69,17 @@ func initFlexHaMode() {
 						pages.SwitchToPage("HA Mode")
 					})
 				return
-			} else {
-				inventory.All.Vars["loadbalancer_apiserver_localhost"] = false
-				inventory.All.Vars["kube_vip_enabled"] = true
-				inventory.All.Vars["kube_vip_controlplane_enabled"] = true
-				inventory.All.Vars["kube_vip_arp_enabled"] = true
-				inventory.All.Vars["kube_proxy_strict_arp"] = true
-				inventory.All.Vars["kube_vip_lb_enable"] = true
-				inventory.All.Vars["kube_vip_address"] = vip
-				apiServer := map[string]string{"address": vip, "port": "6443"}
-				inventory.All.Vars["loadbalancer_apiserver"] = apiServer
 			}
+
+			inventory.All.Vars["loadbalancer_apiserver_localhost"] = false
+			inventory.All.Vars["kube_vip_enabled"] = true
+			inventory.All.Vars["kube_vip_controlplane_enabled"] = true
+			inventory.All.Vars["kube_vip_arp_enabled"] = true
+			inventory.All.Vars["kube_proxy_strict_arp"] = true
+			inventory.All.Vars["kube_vip_lb_enable"] = true
+			inventory.All.Vars["kube_vip_address"] = vip
+			apiServer := map[string]string{"address": vip, "port": "6443"}
+			inventory.All.Vars["loadbalancer_apiserver"] = apiServer
 		}
 
 		saveInventory()

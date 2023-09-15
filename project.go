@@ -3,7 +3,6 @@ package main
 import (
 	"gopkg.in/yaml.v3"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -189,7 +188,7 @@ func initFormNewProject() {
 			return
 		}
 
-		execCommand(exec.Command("/bin/sh", "-c", "cp -a "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath))
+		execCommand("cp -a "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0)
 		populateInventory()
 		initFlexEditHosts("")
 		pages.SwitchToPage("Edit Hosts")
@@ -203,12 +202,8 @@ func initFormNewProject() {
 func populateInventory() {
 	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
 	ips := strings.Join(nodeIps, " ")
-	cmd := exec.Command("/bin/sh", "-c", "python3 "+filepath.Join(kubesprayPath, inventoryBuilder)+" "+ips)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "CONFIG_FILE="+inventoryFile)
-	cmd.Env = append(cmd.Env, "HOST_PREFIX="+nodeHostnamePrefix)
-
-	execCommand(cmd)
+	cmd := "python3 " + filepath.Join(kubesprayPath, inventoryBuilder) + " " + ips
+	execCommand(cmd, 0, "CONFIG_FILE="+inventoryFile, "HOST_PREFIX="+nodeHostnamePrefix)
 
 	data, err := os.ReadFile(inventoryFile)
 	check(err)

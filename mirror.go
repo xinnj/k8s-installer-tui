@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/rivo/tview"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
@@ -67,15 +66,13 @@ func initFlexMirror() {
 
 	formDown.AddButton("Save & Next", func() {
 		if enableMirror {
-			execCommand(exec.Command("cp", "-f", filepath.Join(projectPath, "group_vars/all/offline.yml"),
-				mirrorFile))
+			execCommand("cp -f "+filepath.Join(projectPath, "group_vars/all/offline.yml")+" "+mirrorFile, 0)
 
-			execCommand(exec.Command("/bin/sh", "-c", "sed -i -E '/# .*\\{\\{ files_repo/s/^# //g' "+mirrorFile))
+			execCommand("sed -i -E '/# .*\\{\\{ files_repo/s/^# //g' "+mirrorFile, 0)
 
 			for k, v := range mirrors {
 				inventory.All.Vars[k] = v
 			}
-			saveInventory()
 		} else {
 			err := os.Remove(mirrorFile)
 			check(err)
@@ -83,8 +80,12 @@ func initFlexMirror() {
 			for k := range mirrors {
 				delete(inventory.All.Vars, k)
 			}
-			saveInventory()
 		}
+
+		saveInventory()
+		flexDeployCluster.Clear()
+		initFlexDeployCluster()
+		pages.SwitchToPage("Deploy Cluster")
 	})
 
 	formDown.AddButton("Cancel", func() {

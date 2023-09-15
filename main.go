@@ -6,7 +6,6 @@ import (
 	"github.com/rivo/tview"
 	"gopkg.in/yaml.v3"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
@@ -35,31 +34,8 @@ var formAddHost = tview.NewForm()
 var flexFeatures = tview.NewFlex()
 var flexHaMode = tview.NewFlex()
 var flexMirror = tview.NewFlex()
-
-func check(e error) {
-	if e != nil {
-		app.Stop()
-		panic(e)
-	}
-}
-
-func execCommand(cmd *exec.Cmd) {
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		app.Stop()
-		panic(string(output))
-	}
-}
-
-func checkRoot() {
-	cmd := exec.Command("id", "-u")
-	output, err := cmd.Output()
-	check(err)
-	if string(output[:len(output)-1]) != "0" {
-		fmt.Println("Application must run as root or as sudoer.")
-		os.Exit(1)
-	}
-}
+var flexDeployCluster = tview.NewFlex()
+var logFile *os.File
 
 func findKubesprayPath() {
 	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray*"))
@@ -96,17 +72,17 @@ func installDependencies() {
 	if matches == nil {
 		panic("Can't find kubespray archive file.")
 	}
-	execCommand(exec.Command("tar", "xvf", matches[0]))
+	execCommand("tar xvf "+matches[0], 0)
 
 	findKubesprayPath()
 
-	cmds := [][]string{{"/bin/sh", "-c", "yum install -y python3-pip podman podman-docker sshpass"},
-		{"touch", "/etc/containers/nodocker"},
-		{"/bin/sh", "-c", "pip3 install -U -r " + filepath.Join(kubesprayPath, pythonRequirements) + " -i https://pypi.tuna.tsinghua.edu.cn/simple"},
-		{"/bin/sh", "-c", "pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + " -i https://pypi.tuna.tsinghua.edu.cn/simple"}}
+	cmds := []string{"yum install -y python3-pip podman podman-docker sshpass",
+		"touch /etc/containers/nodocker",
+		"pip3 install -U -r " + filepath.Join(kubesprayPath, pythonRequirements) + " -i https://pypi.tuna.tsinghua.edu.cn/simple",
+		"pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + " -i https://pypi.tuna.tsinghua.edu.cn/simple"}
 	for _, cmd := range cmds {
 		fmt.Println(cmd)
-		execCommand(exec.Command(cmd[0], cmd[1:]...))
+		execCommand(cmd, 0)
 	}
 
 	file, err := os.Create("/root/.idocluster-dependencies-installed")
@@ -123,14 +99,11 @@ func readConfig() {
 	check(err)
 }
 
-func showErrorModal(text string, handler func(buttonIndex int, buttonLabel string)) {
-	modalError.ClearButtons()
-	modalError.SetText(text).AddButtons([]string{"OK"}).SetDoneFunc(handler)
-	pages.SwitchToPage("Error")
-}
-
 func main() {
 	checkRoot()
+
+	initLog("deploy-cluster-")
+	defer logFile.Close()
 
 	ex, err := os.Executable()
 	check(err)
@@ -152,6 +125,7 @@ func main() {
 	pages.AddPage("Features", flexFeatures, true, false)
 	pages.AddPage("HA Mode", flexHaMode, true, false)
 	pages.AddPage("Mirror", flexMirror, true, false)
+	pages.AddPage("Deploy Cluster", flexDeployCluster, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
