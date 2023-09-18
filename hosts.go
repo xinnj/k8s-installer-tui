@@ -42,6 +42,8 @@ func initFlexEditHosts(selectedHostname string) {
 		}).
 		AddButton("Save", func() {
 			saveInventory()
+			flexEditHosts.Clear()
+			initFlexEditHosts("")
 		})
 	flexLeft := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(listHosts, 0, 1, true).
@@ -56,12 +58,17 @@ func initFlexEditHosts(selectedHostname string) {
 	formDown := tview.NewForm()
 	formDown.AddButton("Save & Next", func() {
 		saveInventory()
+		flexEditHosts.Clear()
+		initFlexEditHosts("")
 		flexFeatures.Clear()
 		initFlexFeatures()
 		pages.SwitchToPage("Features")
 	})
 	formDown.AddButton("Cancel", func() {
 		pages.SwitchToPage("Project")
+	})
+	formDown.AddButton("Quit", func() {
+		showQuitModal("Edit Hosts")
 	})
 
 	flexEditHosts.SetDirection(tview.FlexRow).

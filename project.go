@@ -197,6 +197,10 @@ func initFormNewProject() {
 	formNewProject.AddButton("Cancel", func() {
 		pages.SwitchToPage("Project")
 	})
+
+	formNewProject.AddButton("Quit", func() {
+		showQuitModal("New Project")
+	})
 }
 
 func populateInventory() {

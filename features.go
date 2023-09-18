@@ -90,6 +90,10 @@ func initFlexFeatures() {
 		pages.SwitchToPage("Edit Hosts")
 	})
 
+	formDown.AddButton("Quit", func() {
+		showQuitModal("Features")
+	})
+
 	flexFeatures.SetDirection(tview.FlexRow).
 		AddItem(formFeatures, 0, 1, true).
 		AddItem(formDown, 3, 1, false)

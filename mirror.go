@@ -94,6 +94,10 @@ func initFlexMirror() {
 		pages.SwitchToPage("HA Mode")
 	})
 
+	formDown.AddButton("Quit", func() {
+		showQuitModal("Mirror")
+	})
+
 	flexMirror.SetDirection(tview.FlexRow).
 		AddItem(formMirror, 0, 1, true).
 		AddItem(formDown, 3, 1, false)

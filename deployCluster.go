@@ -5,11 +5,12 @@ import (
 	"github.com/rivo/tview"
 	"gopkg.in/yaml.v3"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
 
-func copySshKeyToNode(rootPassword string) {
-	keyFile := filepath.Join(projectPath, "ansible-key")
+func copySshKeyToNode(rootPassword string) error {
+	keyFile = filepath.Join(projectPath, "ansible-key")
 
 	_, err := os.Stat(keyFile)
 	if err == nil {
@@ -17,15 +18,25 @@ func copySshKeyToNode(rootPassword string) {
 	} else {
 		execCommand("mkdir -p /root/.ssh", 0)
 		execCommand("ssh-keygen -q -N '' -f \""+keyFile+"\"", 0)
-		writeLog("Generate key file: " + keyFile)
+		writeLog("Generated key file: " + keyFile)
 	}
 
 	for _, host := range inventory.All.Hosts {
-		cmd := fmt.Sprintf("echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p 22 root@%s",
+		cmdString := fmt.Sprintf("echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p 22 root@%s",
 			rootPassword, keyFile, host.Ansible_host)
-		writeLog("Copy key to host: " + host.Ansible_host)
-		execCommand(cmd, 5)
+		cmd := exec.Command("/bin/sh", "-c", cmdString)
+
+		_, err := cmd.CombinedOutput()
+		if err != nil {
+			showErrorModal("Can't copy SSH key to host: "+host.Ansible_host+".\nPlease make sure port 22 of the host is accessible, and root password is correct.",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Deploy Cluster")
+				})
+			return err
+		}
+		writeLog("Copied key to host: " + host.Ansible_host)
 	}
+	return nil
 }
 
 func initFlexDeployCluster() {
@@ -67,15 +78,28 @@ func initFlexDeployCluster() {
 		inventory = inventoryContent
 
 		saveInventory()
-		writeLog("Start to deploy the cluster...")
-		//copySshKeyToNode(rootPassword)
-		//pages.SwitchToPage("Deploy Cluster")
-		app.Stop()
-		execCommand("echo hhhhh", 0)
+
+		err = copySshKeyToNode(rootPassword)
+		if err != nil {
+			return
+		}
+
+		defaultVarsFile := filepath.Join(projectPath, "default-vars.yaml")
+		data, err := yaml.Marshal(&appConfig.Default_vars)
+		check(err)
+		err = os.WriteFile(defaultVarsFile, data, 0644)
+		check(err)
+
+		initFlexSetupCluster(true)
+		pages.SwitchToPage("Setup Cluster")
 	})
 
 	formDown.AddButton("Cancel", func() {
 		pages.SwitchToPage("Mirror")
+	})
+
+	formDown.AddButton("Quit", func() {
+		showQuitModal("Deploy Cluster")
 	})
 
 	flexDeployCluster.SetDirection(tview.FlexRow).

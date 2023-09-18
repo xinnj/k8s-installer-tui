@@ -26,6 +26,7 @@ var pages = tview.NewPages()
 var formProject = tview.NewForm()
 var formNewProject = tview.NewForm()
 var modalError = tview.NewModal()
+var modalQuit = tview.NewModal()
 var flexEditHosts = tview.NewFlex()
 var formHostDetails = tview.NewForm()
 var formEditGroups = tview.NewForm()
@@ -35,7 +36,10 @@ var flexFeatures = tview.NewFlex()
 var flexHaMode = tview.NewFlex()
 var flexMirror = tview.NewFlex()
 var flexDeployCluster = tview.NewFlex()
+var logFilePath string
 var logFile *os.File
+var flexSetupCluster = tview.NewFlex()
+var keyFile string
 
 func findKubesprayPath() {
 	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray*"))
@@ -76,7 +80,7 @@ func installDependencies() {
 
 	findKubesprayPath()
 
-	cmds := []string{"yum install -y python3-pip podman podman-docker sshpass",
+	cmds := []string{"yum install -y python3-pip podman podman-docker sshpass, rsync",
 		"touch /etc/containers/nodocker",
 		"pip3 install -U -r " + filepath.Join(kubesprayPath, pythonRequirements) + " -i https://pypi.tuna.tsinghua.edu.cn/simple",
 		"pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + " -i https://pypi.tuna.tsinghua.edu.cn/simple"}
@@ -116,6 +120,7 @@ func main() {
 	initFormProject()
 
 	pages.AddPage("Error", modalError, true, false)
+	pages.AddPage("Quit", modalQuit, true, false)
 	pages.AddPage("Project", formProject, true, true)
 	pages.AddPage("New Project", formNewProject, true, false)
 	pages.AddPage("Edit Hosts", flexEditHosts, true, false)
@@ -126,6 +131,7 @@ func main() {
 	pages.AddPage("HA Mode", flexHaMode, true, false)
 	pages.AddPage("Mirror", flexMirror, true, false)
 	pages.AddPage("Deploy Cluster", flexDeployCluster, true, false)
+	pages.AddPage("Setup Cluster", flexSetupCluster, true, false)
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)

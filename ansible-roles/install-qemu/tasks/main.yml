@@ -1,0 +1,37 @@
+---
+- name: Gather host facts to get ansible_os_family
+  setup:
+    gather_subset: '!all'
+    filter: ansible_*
+
+- name: update repositories cache and install QEMU
+  apt:
+    name:
+      - qemu
+      - qemu-kvm
+      - libvirt-clients
+      - libvirt-daemon-system
+      - bridge-utils
+      - virt-manager
+      - libguestfs-tools
+    update_cache: yes
+    cache_valid_time: 3600
+  when: "ansible_os_family == 'Debian'"
+
+- name: update repositories cache and install QEMU
+  yum:
+    name:
+      - libvirt
+      - qemu-kvm
+  when: "ansible_os_family == 'RedHat'"
+
+- name: Ensure libvirtd is running
+  service: name=libvirtd state=started enabled=yes
+
+- name: Ensure virtlogd is running
+  service: name=virtlogd state=started enabled=yes
+
+- name: Load the KVM kernel module
+  shell: |
+    echo 1 | tee /sys/module/kvm/parameters/ignore_msrs
+    modprobe kvm

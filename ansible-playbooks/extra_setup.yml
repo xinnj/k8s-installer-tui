@@ -1,0 +1,27 @@
+---
+- name: Check ansible version
+  import_playbook: ansible_version.yml
+
+- name: Ensure compatibility with old groups
+  import_playbook: legacy_groups.yml
+
+# Set firewall rules
+- hosts: k8s_cluster:etcd:calico_rr
+  gather_facts: False
+  any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
+  roles:
+    - role: firewall-rules
+      when: set_firewall_rules|default(false)
+
+# Install NFS Client & QEMU
+- hosts: k8s_cluster
+  gather_facts: False
+  any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
+  roles:
+    - role: install-nfs-client
+      when: install_nfs_client|default(false)
+    - role: install-qemu
+      when:
+        - install_qemu|default(false)
+        - node_labels['vm-agent'] is defined
+        - node_labels['vm-agent'] | bool

@@ -95,6 +95,10 @@ func initFlexHaMode() {
 		pages.SwitchToPage("Features")
 	})
 
+	formDown.AddButton("Quit", func() {
+		showQuitModal("HA Mode")
+	})
+
 	flexHaMode.SetDirection(tview.FlexRow).
 		AddItem(formHaMode, 0, 1, true).
 		AddItem(formDown, 3, 1, false)

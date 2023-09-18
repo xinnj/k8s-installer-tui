@@ -56,6 +56,21 @@ func showErrorModal(text string, handler func(buttonIndex int, buttonLabel strin
 	pages.SwitchToPage("Error")
 }
 
+func showQuitModal(backPage string) {
+	modalQuit.ClearButtons()
+	modalQuit.SetText("Do you want to quit the application?").
+		AddButtons([]string{"Quit", "Cancel"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			if buttonLabel == "Cancel" {
+				pages.SwitchToPage(backPage)
+			}
+			if buttonLabel == "Quit" {
+				app.Stop()
+			}
+		})
+	pages.SwitchToPage("Quit")
+}
+
 func initLog(prefix string) {
 	if logFile != nil {
 		logFile.Close()
@@ -65,7 +80,7 @@ func initLog(prefix string) {
 	suffix := fmt.Sprintf("%d%02d%02dT%02d%02d%02d",
 		now.Year(), now.Month(), now.Day(),
 		now.Hour(), now.Minute(), now.Second())
-	logFilePath := filepath.Join(projectPath, prefix+suffix+".log")
+	logFilePath = filepath.Join(projectPath, prefix+suffix+".log")
 
 	f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	check(err)
