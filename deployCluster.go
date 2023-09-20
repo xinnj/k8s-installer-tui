@@ -79,6 +79,8 @@ func initFlexDeployCluster() {
 
 		saveInventory()
 
+		initLog("deploy-cluster-")
+
 		err = copySshKeyToNode(rootPassword)
 		if err != nil {
 			return
@@ -94,7 +96,7 @@ func initFlexDeployCluster() {
 		pages.SwitchToPage("Setup Cluster")
 	})
 
-	formDown.AddButton("Cancel", func() {
+	formDown.AddButton("Back", func() {
 		pages.SwitchToPage("Mirror")
 	})
 

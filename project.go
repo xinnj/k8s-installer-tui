@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/rivo/tview"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
@@ -50,7 +51,8 @@ type Inventory struct {
 	}
 }
 
-func initFormProject() {
+func initFlexProject() {
+	formProject := tview.NewForm()
 	formProject.SetTitle("Project")
 	formProject.SetBorder(true)
 
@@ -107,8 +109,13 @@ func initFormProject() {
 	})
 
 	formProject.AddButton("Quit", func() {
-		app.Stop()
+		showQuitModal("Project")
 	})
+
+	flexProject.SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(formProject, 7, 1, true).
+		AddItem(nil, 0, 1, false)
 }
 
 func initFormNewProject() {
@@ -190,16 +197,13 @@ func initFormNewProject() {
 
 		execCommand("cp -a "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0)
 		populateInventory()
+		flexEditHosts.Clear()
 		initFlexEditHosts("")
 		pages.SwitchToPage("Edit Hosts")
 	})
 
 	formNewProject.AddButton("Cancel", func() {
 		pages.SwitchToPage("Project")
-	})
-
-	formNewProject.AddButton("Quit", func() {
-		showQuitModal("New Project")
 	})
 }
 
@@ -212,6 +216,7 @@ func populateInventory() {
 	data, err := os.ReadFile(inventoryFile)
 	check(err)
 
+	inventory = Inventory{}
 	err = yaml.Unmarshal(data, &inventory)
 	check(err)
 

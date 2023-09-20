@@ -86,7 +86,7 @@ func initFlexFeatures() {
 		pages.SwitchToPage("HA Mode")
 	})
 
-	formDown.AddButton("Cancel", func() {
+	formDown.AddButton("Back", func() {
 		pages.SwitchToPage("Edit Hosts")
 	})
 

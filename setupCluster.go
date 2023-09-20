@@ -18,7 +18,9 @@ var flexUp = tview.NewFlex()
 var startTime time.Time
 var stopTimer = make(chan bool)
 var abortButton *tview.Button
+var backButton *tview.Button
 var quitButton *tview.Button
+var logContent = tview.NewTextView()
 
 func initFlexSetupCluster(clean bool) {
 	if clean {
@@ -30,8 +32,8 @@ func initFlexSetupCluster(clean bool) {
 	textLog.SetText(logFilePath)
 	textLog.SetDisabled(true)
 
-	logContent := tview.NewTextView()
-	logContent.SetBackgroundColor(tcell.ColorDarkGreen)
+	logContent = tview.NewTextView()
+	logContent.SetBackgroundColor(tcell.ColorDarkBlue)
 	logContent.SetMaxLines(500).
 		SetWrap(true).
 		SetWordWrap(true).
@@ -61,6 +63,7 @@ func initFlexSetupCluster(clean bool) {
 						syscall.Kill(-pgid, 15)
 						stopTimer <- true
 						abortButton.SetDisabled(true)
+						backButton.SetDisabled(false)
 						quitButton.SetDisabled(false)
 
 						pages.SwitchToPage("Setup Cluster")
@@ -71,6 +74,13 @@ func initFlexSetupCluster(clean bool) {
 	})
 	abortButton = formDown.GetButton(formDown.GetButtonIndex("Abort"))
 	abortButton.SetDisabled(true)
+
+	formDown.AddButton("Back", func() {
+		pages.SwitchToPage("Deploy Cluster")
+	})
+	backButton = formDown.GetButton(formDown.GetButtonIndex("Back"))
+	backButton.SetDisabled(false)
+
 	formDown.AddButton("Quit", func() {
 		showQuitModal("Setup Cluster")
 	})
@@ -94,8 +104,10 @@ func execCmd(view *tview.TextView) {
 	cmdString := fmt.Sprintf(`
 cp -a %s %s
 cp -a %s %s
+chmod -R 700 %s
 `, filepath.Join(appPath, "ansible-roles/*"), filepath.Join(kubesprayPath, "roles/"),
-		filepath.Join(appPath, "ansible-playbooks/*"), filepath.Join(kubesprayPath, "playbooks/"))
+		filepath.Join(appPath, "ansible-playbooks/*"), filepath.Join(kubesprayPath, "playbooks/"),
+		kubesprayPath)
 	execCommand(cmdString, 0)
 
 	cmdString = fmt.Sprintf(`
@@ -106,7 +118,7 @@ export key=%s
 export vars=%s
 export log=%s
 /usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" "%s" 2>&1 | tee -a "$log"
-#/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" "%s" 2>&1 | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" "%s" 2>&1 | tee -a "$log"
 echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
@@ -127,17 +139,30 @@ echo | tee -a "$log"
 	process = cmd.Process
 
 	abortButton.SetDisabled(false)
+	backButton.SetDisabled(true)
 	quitButton.SetDisabled(true)
 
 	_, err = io.Copy(view, stdout)
 	check(err)
 
+	var resultColor tcell.Color
 	err = cmd.Wait()
+	if err != nil {
+		resultColor = tcell.ColorDarkRed
+	} else {
+		resultColor = tcell.ColorDarkGreen
+	}
+
 	processState = cmd.ProcessState
 
 	stopTimer <- true
-	abortButton.SetDisabled(true)
-	quitButton.SetDisabled(false)
+
+	app.QueueUpdateDraw(func() {
+		logContent.SetBackgroundColor(resultColor)
+		abortButton.SetDisabled(true)
+		backButton.SetDisabled(false)
+		quitButton.SetDisabled(false)
+	})
 }
 
 func updateTimer(stop chan bool) {
@@ -147,7 +172,7 @@ func updateTimer(stop chan bool) {
 			return
 		default:
 			app.QueueUpdateDraw(func() {
-				flexUp.SetTitle("Setup Cluster - Time Elapsed:" + time.Since(startTime).Round(time.Second).String())
+				flexUp.SetTitle("Setup Cluster - Time Elapsed: " + time.Since(startTime).Round(time.Second).String())
 			})
 			time.Sleep(time.Second)
 		}

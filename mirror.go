@@ -88,7 +88,7 @@ func initFlexMirror() {
 		pages.SwitchToPage("Deploy Cluster")
 	})
 
-	formDown.AddButton("Cancel", func() {
+	formDown.AddButton("Back", func() {
 		initialValueLoaded = false
 		mirrors = nil
 		pages.SwitchToPage("HA Mode")

@@ -29,12 +29,6 @@ configuable_vars:
     var:
       containerd_insecure_registries:
         "nexus-docker-5000:5000": "http://nexus-docker-5000:5000"
-  - description: "String test: "
-    var:
-      string_test: "a string"
-  - description: "Int test: "
-    var:
-      int_test: 32
 default_mirrors:
   - gcr_image_repo: "gcr.m.daocloud.io"
   - kube_image_repo: "k8s.m.daocloud.io"

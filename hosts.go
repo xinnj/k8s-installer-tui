@@ -64,7 +64,7 @@ func initFlexEditHosts(selectedHostname string) {
 		initFlexFeatures()
 		pages.SwitchToPage("Features")
 	})
-	formDown.AddButton("Cancel", func() {
+	formDown.AddButton("Back", func() {
 		pages.SwitchToPage("Project")
 	})
 	formDown.AddButton("Quit", func() {

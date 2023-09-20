@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-const pythonRequirements = "requirements-2.12.txt"
+const pythonRequirements = "requirements.txt"
 
 type AppConfig struct {
 	Predefined_node_labels map[string]string
@@ -23,10 +23,10 @@ var kubesprayPath string
 var appConfig AppConfig
 var app = tview.NewApplication()
 var pages = tview.NewPages()
-var formProject = tview.NewForm()
-var formNewProject = tview.NewForm()
 var modalError = tview.NewModal()
 var modalQuit = tview.NewModal()
+var flexProject = tview.NewFlex()
+var formNewProject = tview.NewForm()
 var flexEditHosts = tview.NewFlex()
 var formHostDetails = tview.NewForm()
 var formEditGroups = tview.NewForm()
@@ -80,7 +80,7 @@ func installDependencies() {
 
 	findKubesprayPath()
 
-	cmds := []string{"yum install -y python3-pip podman podman-docker sshpass, rsync",
+	cmds := []string{"yum install -y python3-pip podman podman-docker sshpass rsync",
 		"touch /etc/containers/nodocker",
 		"pip3 install -U -r " + filepath.Join(kubesprayPath, pythonRequirements) + " -i https://pypi.tuna.tsinghua.edu.cn/simple",
 		"pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + " -i https://pypi.tuna.tsinghua.edu.cn/simple"}
@@ -106,7 +106,6 @@ func readConfig() {
 func main() {
 	checkRoot()
 
-	initLog("deploy-cluster-")
 	defer logFile.Close()
 
 	ex, err := os.Executable()
@@ -117,11 +116,11 @@ func main() {
 
 	readConfig()
 
-	initFormProject()
+	initFlexProject()
 
 	pages.AddPage("Error", modalError, true, false)
 	pages.AddPage("Quit", modalQuit, true, false)
-	pages.AddPage("Project", formProject, true, true)
+	pages.AddPage("Project", flexProject, true, true)
 	pages.AddPage("New Project", formNewProject, true, false)
 	pages.AddPage("Edit Hosts", flexEditHosts, true, false)
 	pages.AddPage("Edit Groups", formEditGroups, true, false)

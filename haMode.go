@@ -89,7 +89,7 @@ func initFlexHaMode() {
 		pages.SwitchToPage("Mirror")
 	})
 
-	formDown.AddButton("Cancel", func() {
+	formDown.AddButton("Back", func() {
 		haMode = ""
 		vip = ""
 		pages.SwitchToPage("Features")
