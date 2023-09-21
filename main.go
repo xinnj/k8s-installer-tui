@@ -34,6 +34,7 @@ var flexEditNodeLabels = tview.NewFlex()
 var formAddHost = tview.NewForm()
 var flexFeatures = tview.NewFlex()
 var flexHaMode = tview.NewFlex()
+var flexNetwork = tview.NewFlex()
 var flexMirror = tview.NewFlex()
 var flexDeployCluster = tview.NewFlex()
 var logFilePath string
@@ -120,6 +121,7 @@ func main() {
 
 	pages.AddPage("Error", modalError, true, false)
 	pages.AddPage("Quit", modalQuit, true, false)
+
 	pages.AddPage("Project", flexProject, true, true)
 	pages.AddPage("New Project", formNewProject, true, false)
 	pages.AddPage("Edit Hosts", flexEditHosts, true, false)
@@ -128,6 +130,7 @@ func main() {
 	pages.AddPage("Add Host", formAddHost, true, false)
 	pages.AddPage("Features", flexFeatures, true, false)
 	pages.AddPage("HA Mode", flexHaMode, true, false)
+	pages.AddPage("Network", flexNetwork, true, false)
 	pages.AddPage("Mirror", flexMirror, true, false)
 	pages.AddPage("Deploy Cluster", flexDeployCluster, true, false)
 	pages.AddPage("Setup Cluster", flexSetupCluster, true, false)

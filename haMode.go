@@ -84,9 +84,9 @@ func initFlexHaMode() {
 
 		saveInventory()
 
-		flexMirror.Clear()
-		initFlexMirror()
-		pages.SwitchToPage("Mirror")
+		flexNetwork.Clear()
+		initFlexNetwork()
+		pages.SwitchToPage("Network")
 	})
 
 	formDown.AddButton("Back", func() {

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,4 +95,66 @@ func writeLog(content string) {
 	check(err)
 	err = logFile.Sync()
 	check(err)
+}
+
+func Hosts(cidr string) (ips []string, err error) {
+	prefix, err := netip.ParsePrefix(cidr)
+	if err != nil {
+		return nil, err
+	}
+
+	for addr := prefix.Addr(); prefix.Contains(addr); addr = addr.Next() {
+		ips = append(ips, addr.String())
+	}
+
+	if len(ips) < 2 {
+		return ips, nil
+	}
+
+	return ips[1 : len(ips)-1], nil
+}
+
+func groupPing(ips []string) (reachableIps []string, unreachableIps []string) {
+	const maxConcurrency = 10
+
+	type pingResult struct {
+		ip        string
+		reachable bool
+	}
+
+	if ips == nil || len(ips) == 0 {
+		return
+	}
+
+	resultCh := make(chan pingResult)
+
+	groups := int(math.Ceil(float64(len(ips)) / maxConcurrency))
+
+	for i := 0; i < groups; i++ {
+		start := i * maxConcurrency
+		end := int(math.Min(float64(len(ips)-1), float64((i+1)*maxConcurrency-1)))
+
+		for j := start; j <= end; j++ {
+			go func(ip string, resultCh chan pingResult) {
+				err := exec.Command("ping", ip, "-c", "2").Run()
+				if err != nil {
+					resultCh <- pingResult{ip: ip, reachable: false}
+				} else {
+					resultCh <- pingResult{ip: ip, reachable: true}
+				}
+			}(ips[j], resultCh)
+		}
+
+		var result pingResult
+		for j := start; j <= end; j++ {
+			result = <-resultCh
+			if result.reachable {
+				reachableIps = append(reachableIps, result.ip)
+			} else {
+				unreachableIps = append(unreachableIps, result.ip)
+			}
+		}
+	}
+
+	return reachableIps, unreachableIps
 }

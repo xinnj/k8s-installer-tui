@@ -91,7 +91,7 @@ func initFlexMirror() {
 	formDown.AddButton("Back", func() {
 		initialValueLoaded = false
 		mirrors = nil
-		pages.SwitchToPage("HA Mode")
+		pages.SwitchToPage("Network")
 	})
 
 	formDown.AddButton("Quit", func() {
