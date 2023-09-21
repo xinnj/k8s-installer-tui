@@ -12,6 +12,7 @@ import (
 const pythonRequirements = "requirements.txt"
 
 type AppConfig struct {
+	Python_repo            string
 	Predefined_node_labels map[string]string
 	Default_vars           map[string]any
 	Configuable_vars       []map[string]any
@@ -61,7 +62,6 @@ func findKubesprayPath() {
 	}
 }
 
-// Todo: mirror configurable
 func installDependencies() {
 	_, err := os.Stat("/root/.idocluster-dependencies-installed")
 	if err == nil {
@@ -81,10 +81,15 @@ func installDependencies() {
 
 	findKubesprayPath()
 
+	var pythonRepoParam string
+	if appConfig.Python_repo != "" {
+		pythonRepoParam = " -i " + appConfig.Python_repo
+	}
+
 	cmds := []string{"yum install -y python3-pip podman podman-docker sshpass rsync",
 		"touch /etc/containers/nodocker",
-		"pip3 install -U -r " + filepath.Join(kubesprayPath, pythonRequirements) + " -i https://pypi.tuna.tsinghua.edu.cn/simple",
-		"pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + " -i https://pypi.tuna.tsinghua.edu.cn/simple"}
+		"pip3 install -U -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
+		"pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + pythonRepoParam}
 	for _, cmd := range cmds {
 		fmt.Println(cmd)
 		execCommand(cmd, 0)
@@ -113,9 +118,9 @@ func main() {
 	check(err)
 	appPath = filepath.Dir(ex)
 
-	installDependencies()
-
 	readConfig()
+
+	installDependencies()
 
 	initFlexProject()
 
