@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"gopkg.in/yaml.v3"
 	"os"
@@ -40,24 +41,36 @@ func copySshKeyToNode(rootPassword string) error {
 }
 
 func initFlexDeployCluster() {
-	formDeployCluster := tview.NewForm()
-	formDeployCluster.SetTitle("Deploy Cluster").SetBorder(true)
+	flexUp := tview.NewFlex()
+	flexUp.SetTitle("Ready To Go").SetBorder(true)
 
 	var rootPassword string
-	formDeployCluster.AddPasswordField("Root password of each node: ", "", 0, '*', func(text string) {
-		rootPassword = text
-	})
+	formPassword := tview.NewForm().
+		AddPasswordField("Root password of each node: ", "", 0, '*', func(text string) {
+			rootPassword = text
+		})
 
 	inventoryContentByte, err := yaml.Marshal(&inventory)
 	check(err)
 	inventoryContentString := string(inventoryContentByte)
-	formDeployCluster.AddTextArea("Inventory file: ", inventoryContentString, 0, 20, 0, func(text string) {
-		inventoryContentString = text
-	})
+	textInventory := tview.NewTextArea()
+	style := tcell.Style{}
+	style = style.Background(tcell.ColorBlue)
+	textInventory.SetTextStyle(style)
+	textInventory.
+		SetLabel("Inventory file: ").
+		SetText(inventoryContentString, false).
+		SetChangedFunc(func() {
+			inventoryContentString = textInventory.GetText()
+		})
+
+	flexUp.SetDirection(tview.FlexRow).
+		AddItem(formPassword, 4, 1, true).
+		AddItem(textInventory, 0, 1, false)
 
 	formDown := tview.NewForm()
 
-	formDown.AddButton("Deploy Cluster", func() {
+	formDown.AddButton("Start", func() {
 		if rootPassword == "" {
 			showErrorModal("Please provide root password of each node.",
 				func(buttonIndex int, buttonLabel string) {
@@ -105,7 +118,7 @@ func initFlexDeployCluster() {
 	})
 
 	flexDeployCluster.SetDirection(tview.FlexRow).
-		AddItem(formDeployCluster, 0, 1, true).
+		AddItem(flexUp, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
 
 }

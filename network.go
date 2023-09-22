@@ -39,6 +39,11 @@ func initFlexNetwork() {
 		podCidr = text
 	})
 
+	checkConflicts := true
+	formNetwork.AddCheckbox("Check IP Conflicts: ", checkConflicts, func(checked bool) {
+		checkConflicts = checked
+	})
+
 	formDown := tview.NewForm()
 
 	formDown.AddButton("Save & Next", func() {
@@ -68,34 +73,36 @@ func initFlexNetwork() {
 			return
 		}
 
-		ch := make(chan bool)
-		go func() {
-			modalCheckIp := tview.NewModal().SetText("Checking IP conflicts...")
-			pages.AddPage("Check IP", modalCheckIp, true, true)
-			app.ForceDraw()
-			ch <- true
-		}()
+		if checkConflicts {
+			ch := make(chan bool)
+			go func() {
+				modalCheckIp := tview.NewModal().SetText("Checking IP conflicts...")
+				pages.AddPage("Check IP", modalCheckIp, true, true)
+				app.ForceDraw()
+				ch <- true
+			}()
 
-		serviceIps, err := Hosts(serviceCidr)
-		check(err)
-		podIps, err := Hosts(podCidr)
-		check(err)
-		ips := []string{serviceIps[0], serviceIps[len(serviceIps)/4], serviceIps[len(serviceIps)/2], serviceIps[len(serviceIps)*3/4], serviceIps[len(serviceIps)-1],
-			podIps[0], podIps[len(podIps)/4], podIps[len(podIps)/2], podIps[len(podIps)*3/4], podIps[len(podIps)-1]}
-		slices.Sort(ips)
-		ips = slices.Compact(ips)
-		reachableIPs, _ := groupPing(ips)
+			serviceIps, err := Hosts(serviceCidr)
+			check(err)
+			podIps, err := Hosts(podCidr)
+			check(err)
+			ips := []string{serviceIps[0], serviceIps[len(serviceIps)/4], serviceIps[len(serviceIps)/2], serviceIps[len(serviceIps)*3/4], serviceIps[len(serviceIps)-1],
+				podIps[0], podIps[len(podIps)/4], podIps[len(podIps)/2], podIps[len(podIps)*3/4], podIps[len(podIps)-1]}
+			slices.Sort(ips)
+			ips = slices.Compact(ips)
+			reachableIPs, _ := groupPing(ips)
 
-		// Wait until modal draw finish
-		<-ch
+			// Wait until modal draw finish
+			<-ch
 
-		if len(reachableIPs) != 0 {
-			slices.Sort(reachableIPs)
-			showErrorModal(fmt.Sprintf("Potential IP conflicts detected.\n%v", reachableIPs),
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Network")
-				})
-			return
+			if len(reachableIPs) != 0 {
+				slices.Sort(reachableIPs)
+				showErrorModal(fmt.Sprintf("Potential IP conflicts detected.\n%v", reachableIPs),
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("Network")
+					})
+				return
+			}
 		}
 
 		inventory.All.Vars["kube_service_addresses"] = serviceCidr
