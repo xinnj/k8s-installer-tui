@@ -14,7 +14,7 @@ import (
 
 var process *os.Process
 var processState *os.ProcessState
-var flexUp = tview.NewFlex()
+var flexSetupClusterUp = tview.NewFlex()
 var startTime time.Time
 var stopTimer = make(chan bool)
 var abortButton *tview.Button
@@ -42,9 +42,9 @@ func initFlexSetupCluster(clean bool) {
 			app.Draw()
 		})
 
-	flexUp = tview.NewFlex().SetDirection(tview.FlexRow)
-	flexUp.SetTitle("Setup Cluster").SetBorder(true)
-	flexUp.AddItem(textLog, 2, 1, false).
+	flexSetupClusterUp = tview.NewFlex().SetDirection(tview.FlexRow)
+	flexSetupClusterUp.SetTitle("Setup Cluster").SetBorder(true)
+	flexSetupClusterUp.AddItem(textLog, 2, 1, false).
 		AddItem(logContent, 0, 1, true)
 
 	formDown := tview.NewForm()
@@ -88,7 +88,7 @@ func initFlexSetupCluster(clean bool) {
 	quitButton.SetDisabled(false)
 
 	flexSetupCluster.SetDirection(tview.FlexRow).
-		AddItem(flexUp, 0, 1, true).
+		AddItem(flexSetupClusterUp, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
 
 	go execCmd(logContent)
@@ -172,7 +172,7 @@ func updateTimer(stop chan bool) {
 			return
 		default:
 			app.QueueUpdateDraw(func() {
-				flexUp.SetTitle("Setup Cluster - Time Elapsed: " + time.Since(startTime).Round(time.Second).String())
+				flexSetupClusterUp.SetTitle("Setup Cluster - Time Elapsed: " + time.Since(startTime).Round(time.Second).String())
 			})
 			time.Sleep(time.Second)
 		}

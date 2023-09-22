@@ -1,7 +1,6 @@
 python_repo: "https://pypi.tuna.tsinghua.edu.cn/simple"
 predefined_node_labels:
   vm-agent: true
-  test-label:
 default_vars:
   download_run_once: true
   download_localhost: true

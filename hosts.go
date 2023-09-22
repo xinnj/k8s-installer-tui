@@ -9,17 +9,18 @@ import (
 	"strings"
 )
 
-func initFlexEditHosts(selectedHostname string) {
-	formHostDetails.SetBorder(true)
+var flexHostDetails = tview.NewFlex()
+var removeButton *tview.Button
 
+func initFlexEditHosts(selectedHostname string) {
 	listHosts := tview.NewList().ShowSecondaryText(false)
 	for index, host := range getHostsList() {
 		listHosts.AddItem(host, "", rune(49+index), nil)
 	}
 	listHosts.SetChangedFunc(func(index int, host string, secondaryText string, shortcut rune) {
 		hostname := strings.Split(host, ":")[0]
-		formHostDetails.Clear(true)
-		initFormHostDetails(hostname)
+		flexHostDetails.Clear()
+		initFlexHostDetails(hostname)
 	})
 
 	var hostname string
@@ -31,20 +32,52 @@ func initFlexEditHosts(selectedHostname string) {
 		listHosts.SetCurrentItem(selectedIndex[0])
 		hostname = selectedHostname
 	}
-	formHostDetails.Clear(true)
-	initFormHostDetails(hostname)
+	flexHostDetails.Clear()
+	initFlexHostDetails(hostname)
 
 	formLeft := tview.NewForm().
-		AddButton("Add Node", func() {
+		AddButton("Add", func() {
 			formAddHost.Clear(true)
 			initFormAddHost()
 			pages.SwitchToPage("Add Host")
+		}).
+		AddButton("Remove", func() {
+			currentItem, _ := listHosts.GetItemText(listHosts.GetCurrentItem())
+			hostToBeRemoved := strings.Split(currentItem, ":")[0]
+			modalConfirm := tview.NewModal().
+				SetText("Are you want to remove node:\n" + hostToBeRemoved).
+				AddButtons([]string{"Remove", "Cancel"}).
+				SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+					if buttonLabel == "Cancel" {
+						pages.SwitchToPage("Edit Hosts")
+					}
+					if buttonLabel == "Remove" {
+						delete(inventory.All.Hosts, hostToBeRemoved)
+						delete(inventory.All.Children.Kube_control_plane.Hosts, hostToBeRemoved)
+						delete(inventory.All.Children.Kube_node.Hosts, hostToBeRemoved)
+						delete(inventory.All.Children.Etcd.Hosts, hostToBeRemoved)
+						delete(inventory.All.Children.Calico_rr.Hosts, hostToBeRemoved)
+
+						flexEditHosts.Clear()
+						initFlexEditHosts("")
+						pages.SwitchToPage("Edit Hosts")
+					}
+				})
+			pages.AddPage("Confirm Remove Node", modalConfirm, true, true)
 		}).
 		AddButton("Save", func() {
 			saveInventory()
 			flexEditHosts.Clear()
 			initFlexEditHosts("")
 		})
+
+	removeButton = formLeft.GetButton(formLeft.GetButtonIndex("Remove"))
+	if len(inventory.All.Hosts) <= 1 {
+		removeButton.SetDisabled(true)
+	} else {
+		removeButton.SetDisabled(false)
+	}
+
 	flexLeft := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(listHosts, 0, 1, true).
 		AddItem(formLeft, 3, 1, false)
@@ -52,11 +85,20 @@ func initFlexEditHosts(selectedHostname string) {
 
 	flexUp := tview.NewFlex().
 		AddItem(flexLeft, 0, 1, true).
-		AddItem(formHostDetails, 0, 2, false)
+		AddItem(flexHostDetails, 0, 2, false)
 	flexUp.SetTitle("Edit Hosts").SetBorder(true)
 
 	formDown := tview.NewForm()
 	formDown.AddButton("Save & Next", func() {
+		if len(inventory.All.Children.Etcd.Hosts)%2 == 0 {
+			showErrorModal("ETCD node number should be odd. "+
+				"Current number is "+strconv.Itoa(len(inventory.All.Children.Etcd.Hosts))+".",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Edit Hosts")
+				})
+			return
+		}
+
 		saveInventory()
 		flexEditHosts.Clear()
 		initFlexEditHosts("")
@@ -114,6 +156,11 @@ func initFormAddHost() {
 				newHostDetails.Groups = append(newHostDetails.Groups, "kube_control_plane")
 				newHostDetails.Groups = append(newHostDetails.Groups, "kube_node")
 			case 2:
+				// etcd nodes number should be always odd
+				for node := range inventory.All.Hosts {
+					inventory.All.Children.Etcd.Hosts[node] = make(map[any]any)
+				}
+
 				newHostDetails.Groups = append(newHostDetails.Groups, "etcd")
 				newHostDetails.Groups = append(newHostDetails.Groups, "kube_node")
 			default:

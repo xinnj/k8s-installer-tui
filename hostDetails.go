@@ -19,11 +19,10 @@ type HostDetails struct {
 var hostDetails HostDetails
 var tmpNodeLabels string
 
-func initFormHostDetails(hostname string) {
+func initFlexHostDetails(hostname string) {
 	getHostDetails(hostname)
 
-	formHostDetails.SetBorder(true)
-
+	formHostDetails := tview.NewForm()
 	formHostDetails.AddTextView("Hostname: ", hostname, 0, 3, false, false)
 
 	formHostDetails.AddInputField("Ansible Host:", hostDetails.Ansible_host, 0, nil, func(text string) {
@@ -40,10 +39,6 @@ func initFormHostDetails(hostname string) {
 	})
 
 	formHostDetails.AddTextView("Groups: ", strings.Join(hostDetails.Groups, "\n"), 0, 0, false, false)
-	formHostDetails.AddButton("Edit Groups", func() {
-		initFormEditGroups()
-		pages.SwitchToPage("Edit Groups")
-	})
 
 	var labelsString string
 	if len(hostDetails.Node_labels) != 0 {
@@ -52,11 +47,23 @@ func initFormHostDetails(hostname string) {
 		labelsString = string(labels)
 	}
 	formHostDetails.AddTextView("Node Labels: ", labelsString, 0, 0, false, false)
-	formHostDetails.AddButton("Edit Node Labels", func() {
-		flexEditNodeLabels.Clear()
-		initFlexEditNodeLabels()
-		pages.SwitchToPage("Edit Node Labels")
-	})
+
+	formDown := tview.NewForm().
+		AddButton("Edit Groups", func() {
+			initFormEditGroups()
+			pages.SwitchToPage("Edit Groups")
+		}).
+		AddButton("Edit Node Labels", func() {
+			flexEditNodeLabels.Clear()
+			initFlexEditNodeLabels()
+			pages.SwitchToPage("Edit Node Labels")
+		})
+
+	flexHostDetails.
+		SetDirection(tview.FlexRow).
+		AddItem(formHostDetails, 0, 1, true).
+		AddItem(formDown, 3, 1, false)
+	flexHostDetails.SetBorder(true)
 }
 
 func initFormEditGroups() {
@@ -107,8 +114,8 @@ func initFormEditGroups() {
 		hostDetails.Groups = newGroups
 		writeBackHostDetails()
 
-		formHostDetails.Clear(true)
-		initFormHostDetails(hostDetails.Hostname)
+		flexHostDetails.Clear()
+		initFlexHostDetails(hostDetails.Hostname)
 		pages.SwitchToPage("Edit Hosts")
 	})
 
@@ -146,8 +153,8 @@ func initFlexEditNodeLabels() {
 			hostDetails.Node_labels = newLabels
 			writeBackHostDetails()
 			tmpNodeLabels = ""
-			formHostDetails.Clear(true)
-			initFormHostDetails(hostDetails.Hostname)
+			flexHostDetails.Clear()
+			initFlexHostDetails(hostDetails.Hostname)
 			pages.SwitchToPage("Edit Hosts")
 		}
 	})
