@@ -16,6 +16,9 @@ default_vars:
   krew_enabled: true
   kube_apiserver_node_port_range: "30000-32767"
 configuable_vars:
+  - description: "Enable NTP: "
+    var:
+      ntp_enabled: true
   - description: "Open firewall rules on each node: "
     var:
       set_firewall_rules: true
