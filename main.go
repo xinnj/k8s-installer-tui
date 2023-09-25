@@ -41,6 +41,7 @@ var logFilePath string
 var logFile *os.File
 var flexSetupCluster = tview.NewFlex()
 var keyFile string
+var extraVars map[string]any
 
 func findKubesprayPath() {
 	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray*"))

@@ -123,7 +123,7 @@ echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 /usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
-`, inventoryFile, keyFile, filepath.Join(projectPath, "default-vars.yaml"), logFilePath,
+`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
 		"playbooks/extra_setup.yml",
 		"playbooks/cluster.yml")
 

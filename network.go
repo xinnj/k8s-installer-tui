@@ -21,15 +21,15 @@ func initFlexNetwork() {
 	check(err)
 
 	var serviceCidr, podCidr string
-	if inventory.All.Vars["kube_service_addresses"] == nil {
+	if extraVars["kube_service_addresses"] == nil {
 		serviceCidr = clusterVars["kube_service_addresses"].(string)
 	} else {
-		serviceCidr = inventory.All.Vars["kube_service_addresses"].(string)
+		serviceCidr = extraVars["kube_service_addresses"].(string)
 	}
-	if inventory.All.Vars["kube_pods_subnet"] == nil {
+	if extraVars["kube_pods_subnet"] == nil {
 		podCidr = clusterVars["kube_pods_subnet"].(string)
 	} else {
-		podCidr = inventory.All.Vars["kube_pods_subnet"].(string)
+		podCidr = extraVars["kube_pods_subnet"].(string)
 	}
 
 	formNetwork.AddInputField("Service CIDR: ", serviceCidr, 0, nil, func(text string) {
@@ -105,8 +105,8 @@ func initFlexNetwork() {
 			}
 		}
 
-		inventory.All.Vars["kube_service_addresses"] = serviceCidr
-		inventory.All.Vars["kube_pods_subnet"] = podCidr
+		extraVars["kube_service_addresses"] = serviceCidr
+		extraVars["kube_pods_subnet"] = podCidr
 		saveInventory()
 
 		flexMirror.Clear()

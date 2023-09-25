@@ -46,7 +46,7 @@ func initFlexMirror() {
 
 			// Load values from inventory file
 			for k, v := range mirrors {
-				if inventory.All.Vars[k] != nil {
+				if extraVars[k] != nil {
 					mirrors[k] = v
 				}
 			}
@@ -71,14 +71,14 @@ func initFlexMirror() {
 			execCommand("sed -i -E '/# .*\\{\\{ files_repo/s/^# //g' "+mirrorFile, 0)
 
 			for k, v := range mirrors {
-				inventory.All.Vars[k] = v
+				extraVars[k] = v
 			}
 		} else {
 			err := os.Remove(mirrorFile)
 			check(err)
 
 			for k := range mirrors {
-				delete(inventory.All.Vars, k)
+				delete(extraVars, k)
 			}
 		}
 

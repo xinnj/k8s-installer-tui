@@ -47,7 +47,6 @@ type Inventory struct {
 				Hosts map[string]map[any]any
 			}
 		}
-		Vars map[string]any
 	}
 }
 
@@ -83,24 +82,7 @@ func initFlexProject() {
 			return
 		}
 
-		inventoryFile = filepath.Join(projectPath, "hosts.yaml")
-		data, err := os.ReadFile(inventoryFile)
-		if err != nil {
-			showErrorModal("Can't find file: "+inventoryFile,
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Project")
-				})
-			return
-		}
-
-		err = yaml.Unmarshal(data, &inventory)
-		if err != nil {
-			showErrorModal("Can't parse file: "+inventoryFile,
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Project")
-				})
-			return
-		}
+		loadInventory()
 
 		flexEditHosts.Clear()
 		initFlexEditHosts("")
@@ -215,20 +197,68 @@ func populateInventory() {
 
 	data, err := os.ReadFile(inventoryFile)
 	check(err)
-
 	inventory = Inventory{}
 	err = yaml.Unmarshal(data, &inventory)
 	check(err)
 
-	inventory.All.Vars = make(map[string]any)
+	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
+	extraVars = make(map[string]any)
+	_, err = os.Stat(extraVarsFile)
+	if err == nil {
+		data, err = os.ReadFile(extraVarsFile)
+		check(err)
+		err = yaml.Unmarshal(data, &extraVars)
+		check(err)
+	}
+}
+
+func loadInventory() {
+	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
+	data, err := os.ReadFile(inventoryFile)
+	if err != nil {
+		showErrorModal("Can't find file: "+inventoryFile,
+			func(buttonIndex int, buttonLabel string) {
+				pages.SwitchToPage("Project")
+			})
+		return
+	}
+
+	err = yaml.Unmarshal(data, &inventory)
+	if err != nil {
+		showErrorModal("Can't parse file: "+inventoryFile,
+			func(buttonIndex int, buttonLabel string) {
+				pages.SwitchToPage("Project")
+			})
+		return
+	}
+
+	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
+	extraVars = make(map[string]any)
+	_, err = os.Stat(extraVarsFile)
+	if err == nil {
+		data, err = os.ReadFile(extraVarsFile)
+
+		err = yaml.Unmarshal(data, &extraVars)
+		if err != nil {
+			showErrorModal("Can't parse file: "+extraVarsFile,
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Project")
+				})
+			return
+		}
+	}
 }
 
 func saveInventory() {
 	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
-
 	data, err := yaml.Marshal(&inventory)
 	check(err)
-
 	err = os.WriteFile(inventoryFile, data, 0644)
+	check(err)
+
+	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
+	data, err = yaml.Marshal(&extraVars)
+	check(err)
+	err = os.WriteFile(extraVarsFile, data, 0644)
 	check(err)
 }

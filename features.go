@@ -21,8 +21,8 @@ func initFlexFeatures() {
 		}
 
 		// Load value from inventory if exists
-		if inventory.All.Vars[key] != nil {
-			value = inventory.All.Vars[key]
+		if extraVars[key] != nil {
+			value = extraVars[key]
 		}
 
 		newVars[key] = value
@@ -77,7 +77,7 @@ func initFlexFeatures() {
 		}
 
 		for key, value := range newVars {
-			inventory.All.Vars[key] = value
+			extraVars[key] = value
 		}
 
 		saveInventory()

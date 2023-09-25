@@ -90,6 +90,10 @@ func initFlexDeployCluster() {
 		}
 		inventory = inventoryContent
 
+		for k, v := range appConfig.Default_vars {
+			extraVars[k] = v
+		}
+
 		saveInventory()
 
 		initLog("deploy-cluster-")
@@ -98,12 +102,6 @@ func initFlexDeployCluster() {
 		if err != nil {
 			return
 		}
-
-		defaultVarsFile := filepath.Join(projectPath, "default-vars.yaml")
-		data, err := yaml.Marshal(&appConfig.Default_vars)
-		check(err)
-		err = os.WriteFile(defaultVarsFile, data, 0644)
-		check(err)
 
 		initFlexSetupCluster(true)
 		pages.SwitchToPage("Setup Cluster")

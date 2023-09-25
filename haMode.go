@@ -12,11 +12,11 @@ func initFlexHaMode() {
 	formHaMode.SetTitle("Set HA Mode").SetBorder(true)
 
 	if haMode == "" {
-		if inventory.All.Vars["loadbalancer_apiserver_localhost"] == nil || inventory.All.Vars["loadbalancer_apiserver_localhost"].(bool) {
+		if extraVars["loadbalancer_apiserver_localhost"] == nil || extraVars["loadbalancer_apiserver_localhost"].(bool) {
 			haMode = "localhost loadbalancing"
 		} else {
 			haMode = "kube-vip"
-			vip = inventory.All.Vars["kube_vip_address"].(string)
+			vip = extraVars["kube_vip_address"].(string)
 		}
 	}
 
@@ -54,14 +54,14 @@ func initFlexHaMode() {
 
 	formDown.AddButton("Save & Next", func() {
 		if haMode == "localhost loadbalancing" {
-			inventory.All.Vars["loadbalancer_apiserver_localhost"] = true
-			delete(inventory.All.Vars, "kube_vip_enabled")
-			delete(inventory.All.Vars, "kube_vip_controlplane_enabled")
-			delete(inventory.All.Vars, "kube_vip_arp_enabled")
-			delete(inventory.All.Vars, "kube_proxy_strict_arp")
-			delete(inventory.All.Vars, "kube_vip_lb_enable")
-			delete(inventory.All.Vars, "loadbalancer_apiserver")
-			delete(inventory.All.Vars, "kube_vip_address")
+			extraVars["loadbalancer_apiserver_localhost"] = true
+			delete(extraVars, "kube_vip_enabled")
+			delete(extraVars, "kube_vip_controlplane_enabled")
+			delete(extraVars, "kube_vip_arp_enabled")
+			delete(extraVars, "kube_proxy_strict_arp")
+			delete(extraVars, "kube_vip_lb_enable")
+			delete(extraVars, "loadbalancer_apiserver")
+			delete(extraVars, "kube_vip_address")
 		} else {
 			if vip == "" {
 				showErrorModal("Please provide VIP.",
@@ -71,15 +71,15 @@ func initFlexHaMode() {
 				return
 			}
 
-			inventory.All.Vars["loadbalancer_apiserver_localhost"] = false
-			inventory.All.Vars["kube_vip_enabled"] = true
-			inventory.All.Vars["kube_vip_controlplane_enabled"] = true
-			inventory.All.Vars["kube_vip_arp_enabled"] = true
-			inventory.All.Vars["kube_proxy_strict_arp"] = true
-			inventory.All.Vars["kube_vip_lb_enable"] = true
-			inventory.All.Vars["kube_vip_address"] = vip
+			extraVars["loadbalancer_apiserver_localhost"] = false
+			extraVars["kube_vip_enabled"] = true
+			extraVars["kube_vip_controlplane_enabled"] = true
+			extraVars["kube_vip_arp_enabled"] = true
+			extraVars["kube_proxy_strict_arp"] = true
+			extraVars["kube_vip_lb_enable"] = true
+			extraVars["kube_vip_address"] = vip
 			apiServer := map[string]string{"address": vip, "port": "6443"}
-			inventory.All.Vars["loadbalancer_apiserver"] = apiServer
+			extraVars["loadbalancer_apiserver"] = apiServer
 		}
 
 		saveInventory()
