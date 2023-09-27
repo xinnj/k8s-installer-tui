@@ -38,10 +38,11 @@ var flexNetwork = tview.NewFlex()
 var flexMirror = tview.NewFlex()
 var flexDeployCluster = tview.NewFlex()
 var logFilePath string
-var logFile *os.File
 var flexSetupCluster = tview.NewFlex()
 var keyFile string
 var extraVars map[string]any
+var flexSetupMode = tview.NewFlex()
+var setupNewCluster bool
 
 func findKubesprayPath() {
 	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray*"))
@@ -112,8 +113,6 @@ func readConfig() {
 func main() {
 	checkRoot()
 
-	defer logFile.Close()
-
 	ex, err := os.Executable()
 	check(err)
 	appPath = filepath.Dir(ex)
@@ -122,12 +121,13 @@ func main() {
 
 	installDependencies()
 
-	initFlexProject()
+	initFlexSetupMode()
 
 	pages.AddPage("Error", modalError, true, false)
 	pages.AddPage("Quit", modalQuit, true, false)
 
-	pages.AddPage("Project", flexProject, true, true)
+	pages.AddPage("Setup Mode", flexSetupMode, true, true)
+	pages.AddPage("Project", flexProject, true, false)
 	pages.AddPage("New Project", formNewProject, true, false)
 	pages.AddPage("Edit Hosts", flexEditHosts, true, false)
 	pages.AddPage("Edit Groups", formEditGroups, true, false)

@@ -19,7 +19,7 @@ type HostDetails struct {
 var hostDetails HostDetails
 var tmpNodeLabels string
 
-func initFlexHostDetails(hostname string) {
+func initFlexHostDetails(hostname string, readonly bool) {
 	getHostDetails(hostname)
 
 	formHostDetails := tview.NewForm()
@@ -38,7 +38,7 @@ func initFlexHostDetails(hostname string) {
 		writeBackHostDetails()
 	})
 
-	formHostDetails.AddTextView("Groups: ", strings.Join(hostDetails.Groups, "\n"), 0, 0, false, false)
+	formHostDetails.AddTextView("Groups: ", strings.Join(hostDetails.Groups, "\n"), 0, 0, false, true)
 
 	var labelsString string
 	if len(hostDetails.Node_labels) != 0 {
@@ -46,18 +46,26 @@ func initFlexHostDetails(hostname string) {
 		check(err)
 		labelsString = string(labels)
 	}
-	formHostDetails.AddTextView("Node Labels: ", labelsString, 0, 0, false, false)
+	formHostDetails.AddTextView("Node Labels: ", labelsString, 0, 0, false, true)
 
-	formDown := tview.NewForm().
-		AddButton("Edit Groups", func() {
-			initFormEditGroups()
-			pages.SwitchToPage("Edit Groups")
-		}).
-		AddButton("Edit Node Labels", func() {
-			flexEditNodeLabels.Clear()
-			initFlexEditNodeLabels()
-			pages.SwitchToPage("Edit Node Labels")
-		})
+	formDown := tview.NewForm()
+
+	if readonly {
+		for i := 0; i < formHostDetails.GetFormItemCount(); i++ {
+			formHostDetails.GetFormItem(i).SetDisabled(true)
+		}
+	} else {
+		formDown.
+			AddButton("Edit Groups", func() {
+				initFormEditGroups()
+				pages.SwitchToPage("Edit Groups")
+			}).
+			AddButton("Edit Node Labels", func() {
+				flexEditNodeLabels.Clear()
+				initFlexEditNodeLabels()
+				pages.SwitchToPage("Edit Node Labels")
+			})
+	}
 
 	flexHostDetails.
 		SetDirection(tview.FlexRow).
@@ -115,7 +123,7 @@ func initFormEditGroups() {
 		writeBackHostDetails()
 
 		flexHostDetails.Clear()
-		initFlexHostDetails(hostDetails.Hostname)
+		initFlexHostDetails(hostDetails.Hostname, false)
 		pages.SwitchToPage("Edit Hosts")
 	})
 
@@ -154,7 +162,7 @@ func initFlexEditNodeLabels() {
 			writeBackHostDetails()
 			tmpNodeLabels = ""
 			flexHostDetails.Clear()
-			initFlexHostDetails(hostDetails.Hostname)
+			initFlexHostDetails(hostDetails.Hostname, false)
 			pages.SwitchToPage("Edit Hosts")
 		}
 	})

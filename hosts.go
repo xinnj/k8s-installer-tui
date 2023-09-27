@@ -13,15 +13,68 @@ var flexHostDetails = tview.NewFlex()
 var removeButton *tview.Button
 
 func initFlexEditHosts(selectedHostname string) {
+	formLeft := tview.NewForm().
+		AddButton("Add", func() {
+			formAddHost.Clear(true)
+			initFormAddHost()
+			pages.SwitchToPage("Add Host")
+		}).
+		AddButton("Remove", nil).
+		AddButton("Save", func() {
+			saveInventory()
+			flexEditHosts.Clear()
+			initFlexEditHosts("")
+		})
+
+	removeButton = formLeft.GetButton(formLeft.GetButtonIndex("Remove"))
+
 	listHosts := tview.NewList().ShowSecondaryText(false)
 	for index, host := range getHostsList() {
 		listHosts.AddItem(host, "", rune(49+index), nil)
 	}
 	listHosts.SetChangedFunc(func(index int, host string, secondaryText string, shortcut rune) {
 		hostname := strings.Split(host, ":")[0]
-		flexHostDetails.Clear()
-		initFlexHostDetails(hostname)
+		if _, ok := originalInventory.All.Hosts[hostname]; ok {
+			removeButton.SetDisabled(true)
+			flexHostDetails.Clear()
+			initFlexHostDetails(hostname, true)
+		} else {
+			removeButton.SetDisabled(false)
+			flexHostDetails.Clear()
+			initFlexHostDetails(hostname, false)
+		}
 	})
+
+	removeButton.SetSelectedFunc(func() {
+		currentItem, _ := listHosts.GetItemText(listHosts.GetCurrentItem())
+		hostToBeRemoved := strings.Split(currentItem, ":")[0]
+		modalConfirm := tview.NewModal().
+			SetText("Are you want to remove node:\n" + hostToBeRemoved).
+			AddButtons([]string{"Remove", "Cancel"}).
+			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+				if buttonLabel == "Cancel" {
+					pages.SwitchToPage("Edit Hosts")
+				}
+				if buttonLabel == "Remove" {
+					delete(inventory.All.Hosts, hostToBeRemoved)
+					delete(inventory.All.Children.Kube_control_plane.Hosts, hostToBeRemoved)
+					delete(inventory.All.Children.Kube_node.Hosts, hostToBeRemoved)
+					delete(inventory.All.Children.Etcd.Hosts, hostToBeRemoved)
+					delete(inventory.All.Children.Calico_rr.Hosts, hostToBeRemoved)
+
+					flexEditHosts.Clear()
+					initFlexEditHosts("")
+					pages.SwitchToPage("Edit Hosts")
+				}
+			})
+		pages.AddPage("Confirm Remove Node", modalConfirm, true, true)
+	})
+
+	if len(inventory.All.Hosts) <= 1 {
+		removeButton.SetDisabled(true)
+	} else {
+		removeButton.SetDisabled(false)
+	}
 
 	var hostname string
 	if selectedHostname == "" {
@@ -32,50 +85,13 @@ func initFlexEditHosts(selectedHostname string) {
 		listHosts.SetCurrentItem(selectedIndex[0])
 		hostname = selectedHostname
 	}
-	flexHostDetails.Clear()
-	initFlexHostDetails(hostname)
-
-	formLeft := tview.NewForm().
-		AddButton("Add", func() {
-			formAddHost.Clear(true)
-			initFormAddHost()
-			pages.SwitchToPage("Add Host")
-		}).
-		AddButton("Remove", func() {
-			currentItem, _ := listHosts.GetItemText(listHosts.GetCurrentItem())
-			hostToBeRemoved := strings.Split(currentItem, ":")[0]
-			modalConfirm := tview.NewModal().
-				SetText("Are you want to remove node:\n" + hostToBeRemoved).
-				AddButtons([]string{"Remove", "Cancel"}).
-				SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-					if buttonLabel == "Cancel" {
-						pages.SwitchToPage("Edit Hosts")
-					}
-					if buttonLabel == "Remove" {
-						delete(inventory.All.Hosts, hostToBeRemoved)
-						delete(inventory.All.Children.Kube_control_plane.Hosts, hostToBeRemoved)
-						delete(inventory.All.Children.Kube_node.Hosts, hostToBeRemoved)
-						delete(inventory.All.Children.Etcd.Hosts, hostToBeRemoved)
-						delete(inventory.All.Children.Calico_rr.Hosts, hostToBeRemoved)
-
-						flexEditHosts.Clear()
-						initFlexEditHosts("")
-						pages.SwitchToPage("Edit Hosts")
-					}
-				})
-			pages.AddPage("Confirm Remove Node", modalConfirm, true, true)
-		}).
-		AddButton("Save", func() {
-			saveInventory()
-			flexEditHosts.Clear()
-			initFlexEditHosts("")
-		})
-
-	removeButton = formLeft.GetButton(formLeft.GetButtonIndex("Remove"))
-	if len(inventory.All.Hosts) <= 1 {
+	if _, ok := originalInventory.All.Hosts[hostname]; ok {
 		removeButton.SetDisabled(true)
+		flexHostDetails.Clear()
+		initFlexHostDetails(hostname, true)
 	} else {
-		removeButton.SetDisabled(false)
+		flexHostDetails.Clear()
+		initFlexHostDetails(hostname, false)
 	}
 
 	flexLeft := tview.NewFlex().SetDirection(tview.FlexRow).
@@ -102,9 +118,16 @@ func initFlexEditHosts(selectedHostname string) {
 		saveInventory()
 		flexEditHosts.Clear()
 		initFlexEditHosts("")
-		flexFeatures.Clear()
-		initFlexFeatures()
-		pages.SwitchToPage("Features")
+
+		if setupNewCluster {
+			flexFeatures.Clear()
+			initFlexFeatures()
+			pages.SwitchToPage("Features")
+		} else {
+			flexDeployCluster.Clear()
+			initFlexDeployCluster()
+			pages.SwitchToPage("Deploy Cluster")
+		}
 	})
 	formDown.AddButton("Back", func() {
 		pages.SwitchToPage("Project")

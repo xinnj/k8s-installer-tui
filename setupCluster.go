@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"golang.org/x/exp/slices"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -97,9 +99,6 @@ func initFlexSetupCluster(clean bool) {
 
 func execCmd(view *tview.TextView) {
 	startTime = time.Now()
-	writeLog("====================Start to setup the cluster====================\n")
-	err := logFile.Close()
-	check(err)
 
 	cmdString := fmt.Sprintf(`
 cp -a %s %s
@@ -110,22 +109,136 @@ chmod -R 700 %s
 		kubesprayPath)
 	execCommand(cmdString, 0)
 
-	cmdString = fmt.Sprintf(`
+	if setupNewCluster {
+		// Create a new cluster
+		cmdString = fmt.Sprintf(`
 set -euao pipefail
 
 export inventory=%s
 export key=%s
 export vars=%s
 export log=%s
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" "%s" 2>&1 | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" "%s" 2>&1 | tee -a "$log"
+
+echo "====================Setup a new cluster====================" | tee -a "$log"
+
+echo "====================playbooks/extra_setup.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  "playbooks/extra_setup.yml" 2>&1 | tee -a "$log"
+
+echo "====================playbooks/cluster.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  "playbooks/cluster.yml" 2>&1 | tee -a "$log"
+
 echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
-/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
+
+/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+  -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
+`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
+	} else {
+		// Modify existing cluster
+		var addedControlAndEtcdNodes, addedWorkNodes []string
+
+		for k, _ := range inventory.All.Children.Kube_control_plane.Hosts {
+			if originalInventory.All.Children.Kube_control_plane.Hosts[k] == nil {
+				addedControlAndEtcdNodes = append(addedControlAndEtcdNodes, k)
+			}
+		}
+		for k, _ := range inventory.All.Children.Etcd.Hosts {
+			if originalInventory.All.Children.Etcd.Hosts[k] == nil {
+				addedControlAndEtcdNodes = append(addedControlAndEtcdNodes, k)
+			}
+		}
+		slices.Sort(addedControlAndEtcdNodes)
+		addedControlAndEtcdNodes = slices.Compact(addedControlAndEtcdNodes)
+
+		for k, _ := range inventory.All.Children.Kube_node.Hosts {
+			if inventory.All.Children.Kube_control_plane.Hosts[k] == nil &&
+				inventory.All.Children.Etcd.Hosts[k] == nil &&
+				originalInventory.All.Children.Kube_node.Hosts[k] == nil {
+				// The node is pure work node and not in the original inventory
+				addedWorkNodes = append(addedWorkNodes, k)
+			}
+		}
+
+		cmdAddControlNode := ""
+		if len(addedControlAndEtcdNodes) > 0 {
+			cmdAddControlNode = fmt.Sprintf(`
+export inventory=%s
+export key=%s
+export vars=%s
+export log=%s
+
+echo "====================playbooks/cluster.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  --skip-tags=multus \
+  --limit=etcd,kube_control_plane -e ignore_assert_errors=yes -e etcd_retries=10 \
+  "playbooks/cluster.yml" 2>&1 | tee -a "$log"
+
+echo "====================playbooks/upgrade_cluster.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  --skip-tags=multus \
+  --limit=etcd,kube_control_plane -e ignore_assert_errors=yes -e etcd_retries=10 \
+  "playbooks/upgrade_cluster.yml" 2>&1 | tee -a "$log"
+`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
+		}
+
+		cmdAddWorkNode := ""
+		if len(addedWorkNodes) > 0 {
+			cmdAddWorkNode = fmt.Sprintf(`
+export inventory=%s
+export key=%s
+export vars=%s
+export log=%s
+
+echo "====================playbooks/facts.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  "playbooks/facts.yml" 2>&1 | tee -a "$log"
+
+echo "====================playbooks/scale.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  --limit="%s" \
+  "playbooks/scale.yml" 2>&1 | tee -a "$log"
 `, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
-		"playbooks/extra_setup.yml",
-		"playbooks/cluster.yml")
+				strings.Join(addedWorkNodes, ","))
+		}
+
+		cmdString = fmt.Sprintf(`
+set -euao pipefail
+
+export inventory=%s
+export key=%s
+export vars=%s
+export log=%s
+
+echo "====================Modify cluster====================" | tee -a "$log"
+
+echo "====================playbooks/extra_setup.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  "playbooks/extra_setup.yml" 2>&1 | tee -a "$log"
+
+%s
+%s
+
+echo "====================Restart all nginx-proxy====================" | tee -a "$log"
+/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+  -m shell -a "kubectl get pod -n kube-system | grep nginx-proxy | awk '{print \$1}' | xargs -r kubectl delete pod -n kube-system"
+
+echo "====================Restart all nginx ingress controller====================" | tee -a "$log"
+/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+  -m shell -a "kubectl delete pod --all -n ingress-nginx"
+
+echo | tee -a "$log"
+echo "====================Setup Finished====================" | tee -a "$log"
+echo | tee -a "$log"
+
+/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+  -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
+`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
+			cmdAddControlNode,
+			cmdAddWorkNode)
+	}
 
 	cmd := exec.Command("/bin/bash", "-c", cmdString)
 	cmd.Dir = kubesprayPath
@@ -151,6 +264,22 @@ echo | tee -a "$log"
 		resultColor = tcell.ColorDarkRed
 	} else {
 		resultColor = tcell.ColorDarkGreen
+
+		if !setupNewCluster {
+			now := time.Now()
+			suffix := fmt.Sprintf("%d%02d%02dT%02d%02d%02d",
+				now.Year(), now.Month(), now.Day(),
+				now.Hour(), now.Minute(), now.Second())
+
+			originalInventoryFile := filepath.Join(projectPath, "hosts.yaml")
+			bakFile := originalInventoryFile + "." + suffix
+
+			err := os.Rename(originalInventoryFile, bakFile)
+			check(err)
+
+			err = os.Rename(inventoryFile, originalInventoryFile)
+			check(err)
+		}
 	}
 
 	processState = cmd.ProcessState

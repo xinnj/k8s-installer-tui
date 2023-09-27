@@ -5,44 +5,80 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"gopkg.in/yaml.v3"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 )
 
-func copySshKeyToNode(rootPassword string) error {
+func copySshKeyToNode(rootPassword string) (errorNodes []string) {
+	const maxConcurrency = 10
+
+	type copyResult struct {
+		ip         string
+		successful bool
+	}
+
+	numHosts := len(inventory.All.Hosts)
+	if numHosts == 0 {
+		return
+	}
+
+	resultCh := make(chan copyResult)
+
+	groups := int(math.Ceil(float64(numHosts) / maxConcurrency))
+
 	keyFile = filepath.Join(projectPath, "ansible-key")
 
 	_, err := os.Stat(keyFile)
-	if err == nil {
-		writeLog("Use existing key file: " + keyFile)
-	} else {
+	if err != nil {
 		execCommand("mkdir -p /root/.ssh", 0)
 		execCommand("ssh-keygen -q -N '' -f \""+keyFile+"\"", 0)
-		writeLog("Generated key file: " + keyFile)
 	}
 
+	var hostIps []string
 	for _, host := range inventory.All.Hosts {
-		cmdString := fmt.Sprintf("echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p 22 root@%s",
-			rootPassword, keyFile, host.Ansible_host)
-		cmd := exec.Command("/bin/sh", "-c", cmdString)
-
-		_, err := cmd.CombinedOutput()
-		if err != nil {
-			showErrorModal("Can't copy SSH key to host: "+host.Ansible_host+".\nPlease make sure port 22 of the host is accessible, and root password is correct.",
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Deploy Cluster")
-				})
-			return err
-		}
-		writeLog("Copied key to host: " + host.Ansible_host)
+		hostIps = append(hostIps, host.Ansible_host)
 	}
-	return nil
+
+	for i := 0; i < groups; i++ {
+		start := i * maxConcurrency
+		end := int(math.Min(float64(numHosts-1), float64((i+1)*maxConcurrency-1)))
+
+		for j := start; j <= end; j++ {
+			go func(ip string, resultCh chan copyResult) {
+				cmdString := fmt.Sprintf("echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p 22 root@%s",
+					rootPassword, keyFile, ip)
+				cmd := exec.Command("/bin/sh", "-c", cmdString)
+
+				_, err := cmd.CombinedOutput()
+				if err != nil {
+					resultCh <- copyResult{ip: ip, successful: false}
+				} else {
+					resultCh <- copyResult{ip: ip, successful: true}
+				}
+			}(hostIps[j], resultCh)
+		}
+
+		var result copyResult
+		for j := start; j <= end; j++ {
+			result = <-resultCh
+			if !result.successful {
+				errorNodes = append(errorNodes, result.ip)
+			}
+		}
+	}
+
+	return errorNodes
 }
 
 func initFlexDeployCluster() {
 	flexUp := tview.NewFlex()
-	flexUp.SetTitle("Ready To Go").SetBorder(true)
+	if setupNewCluster {
+		flexUp.SetTitle("Create New Cluster").SetBorder(true)
+	} else {
+		flexUp.SetTitle("Modify Cluster").SetBorder(true)
+	}
 
 	var rootPassword string
 	formPassword := tview.NewForm().
@@ -96,10 +132,32 @@ func initFlexDeployCluster() {
 
 		saveInventory()
 
-		initLog("deploy-cluster-")
+		if setupNewCluster {
+			initLog("create-cluster-")
+		} else {
+			initLog("modify-cluster-")
+		}
 
-		err = copySshKeyToNode(rootPassword)
-		if err != nil {
+		// Copy SSH key
+		ch := make(chan bool)
+		go func() {
+			modalCopySshKey := tview.NewModal().SetText("Copy SSH key to each node...")
+			pages.AddPage("Copy SSH Key", modalCopySshKey, true, true)
+			app.ForceDraw()
+			ch <- true
+		}()
+
+		errorNodes := copySshKeyToNode(rootPassword)
+
+		// Wait until modal draw finish
+		<-ch
+
+		if len(errorNodes) > 0 {
+			showErrorModal(fmt.Sprintf("Can't copy SSH key to these hosts %v \n"+
+				"Please make sure port 22 of the host is accessible, and root password is correct.", errorNodes),
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Deploy Cluster")
+				})
 			return
 		}
 
@@ -108,7 +166,11 @@ func initFlexDeployCluster() {
 	})
 
 	formDown.AddButton("Back", func() {
-		pages.SwitchToPage("Mirror")
+		if setupNewCluster {
+			pages.SwitchToPage("Mirror")
+		} else {
+			pages.SwitchToPage("Edit Hosts")
+		}
 	})
 
 	formDown.AddButton("Quit", func() {

@@ -74,27 +74,11 @@ func showQuitModal(backPage string) {
 }
 
 func initLog(prefix string) {
-	if logFile != nil {
-		logFile.Close()
-	}
-
 	now := time.Now()
 	suffix := fmt.Sprintf("%d%02d%02dT%02d%02d%02d",
 		now.Year(), now.Month(), now.Day(),
 		now.Hour(), now.Minute(), now.Second())
 	logFilePath = filepath.Join(projectPath, prefix+suffix+".log")
-
-	f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	check(err)
-
-	logFile = f
-}
-
-func writeLog(content string) {
-	_, err := logFile.WriteString(content + "\n")
-	check(err)
-	err = logFile.Sync()
-	check(err)
 }
 
 func Hosts(cidr string) (ips []string, err error) {

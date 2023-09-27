@@ -14,6 +14,7 @@ const inventoryBuilder = "contrib/inventory_builder/inventory.py"
 var inventoryFile string
 var nodeIps []string
 var inventory = Inventory{}
+var originalInventory = Inventory{}
 var projectPath = "/root/idocluster"
 var nodeHostnamePrefix = "node"
 
@@ -59,19 +60,21 @@ func initFlexProject() {
 		projectPath = path
 	})
 
-	formProject.AddButton("New", func() {
-		if projectPath == "" {
-			showErrorModal("Please provide project path.",
-				func(buttonIndex int, buttonLabel string) {
-					pages.SwitchToPage("Project")
-				})
-			return
-		}
+	if setupNewCluster {
+		formProject.AddButton("New", func() {
+			if projectPath == "" {
+				showErrorModal("Please provide project path.",
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("Project")
+					})
+				return
+			}
 
-		formNewProject.Clear(true)
-		initFormNewProject()
-		pages.SwitchToPage("New Project")
-	})
+			formNewProject.Clear(true)
+			initFormNewProject()
+			pages.SwitchToPage("New Project")
+		})
+	}
 
 	formProject.AddButton("Load", func() {
 		if projectPath == "" {
@@ -88,6 +91,10 @@ func initFlexProject() {
 		initFlexEditHosts("")
 		pages.SwitchToPage("Edit Hosts")
 
+	})
+
+	formProject.AddButton("Back", func() {
+		pages.SwitchToPage("Setup Mode")
 	})
 
 	formProject.AddButton("Quit", func() {
@@ -190,6 +197,10 @@ func initFormNewProject() {
 }
 
 func populateInventory() {
+	inventory = Inventory{}
+	originalInventory = Inventory{}
+	extraVars = make(map[string]any)
+
 	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
 	ips := strings.Join(nodeIps, " ")
 	cmd := "python3 " + filepath.Join(kubesprayPath, inventoryBuilder) + " " + ips
@@ -197,12 +208,10 @@ func populateInventory() {
 
 	data, err := os.ReadFile(inventoryFile)
 	check(err)
-	inventory = Inventory{}
 	err = yaml.Unmarshal(data, &inventory)
 	check(err)
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
-	extraVars = make(map[string]any)
 	_, err = os.Stat(extraVarsFile)
 	if err == nil {
 		data, err = os.ReadFile(extraVarsFile)
@@ -213,7 +222,38 @@ func populateInventory() {
 }
 
 func loadInventory() {
+	inventory = Inventory{}
+	originalInventory = Inventory{}
+	extraVars = make(map[string]any)
+
 	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
+
+	if !setupNewCluster {
+		_, err := os.Stat(filepath.Join(projectPath, "modified-hosts.yaml"))
+		if err == nil {
+			inventoryFile = filepath.Join(projectPath, "modified-hosts.yaml")
+		}
+
+		originalInventoryFile := filepath.Join(projectPath, "hosts.yaml")
+		data, err := os.ReadFile(originalInventoryFile)
+		if err != nil {
+			showErrorModal("Can't find file: "+originalInventoryFile,
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Project")
+				})
+			return
+		}
+
+		err = yaml.Unmarshal(data, &originalInventory)
+		if err != nil {
+			showErrorModal("Can't parse file: "+originalInventoryFile,
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Project")
+				})
+			return
+		}
+	}
+
 	data, err := os.ReadFile(inventoryFile)
 	if err != nil {
 		showErrorModal("Can't find file: "+inventoryFile,
@@ -233,7 +273,6 @@ func loadInventory() {
 	}
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
-	extraVars = make(map[string]any)
 	_, err = os.Stat(extraVarsFile)
 	if err == nil {
 		data, err = os.ReadFile(extraVarsFile)
@@ -250,15 +289,23 @@ func loadInventory() {
 }
 
 func saveInventory() {
-	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
+	if setupNewCluster {
+		inventoryFile = filepath.Join(projectPath, "hosts.yaml")
+	} else {
+		inventoryFile = filepath.Join(projectPath, "modified-hosts.yaml")
+	}
+
 	data, err := yaml.Marshal(&inventory)
 	check(err)
 	err = os.WriteFile(inventoryFile, data, 0644)
 	check(err)
 
-	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
-	data, err = yaml.Marshal(&extraVars)
-	check(err)
-	err = os.WriteFile(extraVarsFile, data, 0644)
-	check(err)
+	// extra-vars.yaml can only be modified during setting up a new cluster
+	if setupNewCluster {
+		extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
+		data, err = yaml.Marshal(&extraVars)
+		check(err)
+		err = os.WriteFile(extraVarsFile, data, 0644)
+		check(err)
+	}
 }
