@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"gopkg.in/yaml.v3"
 	"math"
@@ -73,36 +72,35 @@ func copySshKeyToNode(rootPassword string) (errorNodes []string) {
 }
 
 func initFlexDeployCluster() {
-	flexUp := tview.NewFlex()
+	formUp := tview.NewForm()
 	if setupNewCluster {
-		flexUp.SetTitle("Create New Cluster").SetBorder(true)
+		formUp.SetTitle("Create New Cluster").SetBorder(true)
 	} else {
-		flexUp.SetTitle("Modify Cluster").SetBorder(true)
+		formUp.SetTitle("Modify Cluster").SetBorder(true)
 	}
 
 	var rootPassword string
-	formPassword := tview.NewForm().
-		AddPasswordField("Root password of each node: ", "", 0, '*', func(text string) {
+	formUp.
+		AddPasswordField("Root password: ", "", 0, '*', func(text string) {
 			rootPassword = text
 		})
 
 	inventoryContentByte, err := yaml.Marshal(&inventory)
 	check(err)
 	inventoryContentString := string(inventoryContentByte)
-	textInventory := tview.NewTextArea()
-	style := tcell.Style{}
-	style = style.Background(tcell.ColorBlue)
-	textInventory.SetTextStyle(style)
-	textInventory.
-		SetLabel("Inventory file: ").
-		SetText(inventoryContentString, false).
-		SetChangedFunc(func() {
-			inventoryContentString = textInventory.GetText()
-		})
+	formUp.AddTextArea("Inventory file: ", inventoryContentString, 0, 10, 0, func(text string) {
+		inventoryContentString = text
+	})
 
-	flexUp.SetDirection(tview.FlexRow).
-		AddItem(formPassword, 4, 1, true).
-		AddItem(textInventory, 0, 1, false)
+	for k, v := range appConfig.Default_vars {
+		extraVars[k] = v
+	}
+	extraVarsContentByte, err := yaml.Marshal(&extraVars)
+	check(err)
+	extraVarsContentString := string(extraVarsContentByte)
+	formUp.AddTextArea("Extra vars: ", extraVarsContentString, 0, 10, 0, func(text string) {
+		extraVarsContentString = text
+	})
 
 	formDown := tview.NewForm()
 
@@ -126,9 +124,16 @@ func initFlexDeployCluster() {
 		}
 		inventory = inventoryContent
 
-		for k, v := range appConfig.Default_vars {
-			extraVars[k] = v
+		var extraVarsContent map[string]any
+		err = yaml.Unmarshal([]byte(extraVarsContentString), &extraVarsContent)
+		if err != nil {
+			showErrorModal("Format of extra vars is wrong.",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Deploy Cluster")
+				})
+			return
 		}
+		extraVars = extraVarsContent
 
 		saveInventory()
 
@@ -178,7 +183,7 @@ func initFlexDeployCluster() {
 	})
 
 	flexDeployCluster.SetDirection(tview.FlexRow).
-		AddItem(flexUp, 0, 1, true).
+		AddItem(formUp, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
 
 }
