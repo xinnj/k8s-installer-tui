@@ -22,12 +22,17 @@ var stopTimer = make(chan bool)
 var abortButton *tview.Button
 var backButton *tview.Button
 var quitButton *tview.Button
-var logContent = tview.NewTextView()
+var logContent *tview.TextView
+var logBgColor tcell.Color
 
 func initFlexSetupCluster(clean bool) {
 	if clean {
 		flexSetupCluster.Clear()
 	}
+
+	process = nil
+	processState = nil
+	logBgColor = tcell.ColorDarkBlue
 
 	textLog := tview.NewInputField()
 	textLog.SetLabel("Log File: ")
@@ -35,7 +40,7 @@ func initFlexSetupCluster(clean bool) {
 	textLog.SetDisabled(true)
 
 	logContent = tview.NewTextView()
-	logContent.SetBackgroundColor(tcell.ColorDarkBlue)
+	logContent.SetBackgroundColor(logBgColor)
 	logContent.SetMaxLines(500).
 		SetWrap(true).
 		SetWordWrap(true).
@@ -63,7 +68,7 @@ func initFlexSetupCluster(clean bool) {
 						pgid, err := syscall.Getpgid(process.Pid)
 						check(err)
 						syscall.Kill(-pgid, 15)
-						stopTimer <- true
+
 						abortButton.SetDisabled(true)
 						backButton.SetDisabled(false)
 						quitButton.SetDisabled(false)
@@ -258,12 +263,11 @@ echo | tee -a "$log"
 	_, err = io.Copy(view, stdout)
 	check(err)
 
-	var resultColor tcell.Color
 	err = cmd.Wait()
 	if err != nil {
-		resultColor = tcell.ColorDarkRed
+		logBgColor = tcell.ColorDarkRed
 	} else {
-		resultColor = tcell.ColorDarkGreen
+		logBgColor = tcell.ColorDarkGreen
 
 		if !setupNewCluster {
 			now := time.Now()
@@ -287,7 +291,7 @@ echo | tee -a "$log"
 	stopTimer <- true
 
 	app.QueueUpdateDraw(func() {
-		logContent.SetBackgroundColor(resultColor)
+		logContent.SetBackgroundColor(logBgColor)
 		abortButton.SetDisabled(true)
 		backButton.SetDisabled(false)
 		quitButton.SetDisabled(false)
