@@ -1,0 +1,28 @@
+name: Release
+
+on:
+  release:
+    types: [ published ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.20'
+
+    - name: Build
+      run: go build
+
+    - name: Package
+      run: chmod +x k8s-installer-tui && tar czf k8s-installer-tui-${{ github.ref_name }}.tgz --transform 's,^,k8s-installer-tui-${{ github.ref_name }}/,' ansible-playbooks ansible-roles images config.yaml k8s-installer-tui kubespray-*.tar.gz LICENSE README.md
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: k8s-installer-tui-${{ github.ref_name }}.tgz
