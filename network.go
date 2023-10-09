@@ -119,7 +119,7 @@ func initFlexNetwork() {
 	})
 
 	formDown.AddButton("Quit", func() {
-		showQuitModal("Network")
+		showQuitModal()
 	})
 
 	flexNetwork.SetDirection(tview.FlexRow).

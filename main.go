@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"gopkg.in/yaml.v3"
 	"os"
@@ -139,6 +140,15 @@ func main() {
 	pages.AddPage("Mirror", flexMirror, true, false)
 	pages.AddPage("Deploy Cluster", flexDeployCluster, true, false)
 	pages.AddPage("Setup Cluster", flexSetupCluster, true, false)
+
+	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlC {
+			showQuitModal()
+			return tcell.NewEventKey(tcell.KeyCtrlC, 0, tcell.ModNone)
+		}
+
+		return event
+	})
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)

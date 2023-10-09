@@ -58,13 +58,15 @@ func showErrorModal(text string, handler func(buttonIndex int, buttonLabel strin
 	pages.SwitchToPage("Error")
 }
 
-func showQuitModal(backPage string) {
+func showQuitModal() {
+	currentPage, _ := pages.GetFrontPage()
+
 	modalQuit.ClearButtons()
 	modalQuit.SetText("Do you want to quit the application?").
 		AddButtons([]string{"Quit", "Cancel"}).
 		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 			if buttonLabel == "Cancel" {
-				pages.SwitchToPage(backPage)
+				pages.SwitchToPage(currentPage)
 			}
 			if buttonLabel == "Quit" {
 				app.Stop()

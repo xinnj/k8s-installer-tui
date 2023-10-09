@@ -133,7 +133,7 @@ func initFlexEditHosts(selectedHostname string) {
 		pages.SwitchToPage("Project")
 	})
 	formDown.AddButton("Quit", func() {
-		showQuitModal("Edit Hosts")
+		showQuitModal()
 	})
 
 	flexEditHosts.SetDirection(tview.FlexRow).

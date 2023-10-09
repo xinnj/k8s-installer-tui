@@ -98,7 +98,7 @@ func initFlexProject() {
 	})
 
 	formProject.AddButton("Quit", func() {
-		showQuitModal("Project")
+		showQuitModal()
 	})
 
 	flexProject.SetDirection(tview.FlexRow).

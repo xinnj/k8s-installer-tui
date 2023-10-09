@@ -95,7 +95,7 @@ func initFlexMirror() {
 	})
 
 	formDown.AddButton("Quit", func() {
-		showQuitModal("Mirror")
+		showQuitModal()
 	})
 
 	flexMirror.SetDirection(tview.FlexRow).

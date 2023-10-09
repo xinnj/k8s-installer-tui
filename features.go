@@ -91,7 +91,7 @@ func initFlexFeatures() {
 	})
 
 	formDown.AddButton("Quit", func() {
-		showQuitModal("Features")
+		showQuitModal()
 	})
 
 	flexFeatures.SetDirection(tview.FlexRow).

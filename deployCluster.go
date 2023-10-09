@@ -179,7 +179,7 @@ func initFlexDeployCluster() {
 	})
 
 	formDown.AddButton("Quit", func() {
-		showQuitModal("Deploy Cluster")
+		showQuitModal()
 	})
 
 	flexDeployCluster.SetDirection(tview.FlexRow).

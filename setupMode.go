@@ -22,7 +22,7 @@ func initFlexSetupMode() {
 	})
 
 	formSetupMode.AddButton("Quit", func() {
-		showQuitModal("Project")
+		showQuitModal()
 	})
 
 	formSetupMode.SetButtonsAlign(tview.AlignCenter)

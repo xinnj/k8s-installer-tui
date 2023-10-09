@@ -84,7 +84,7 @@ func initFlexSetupCluster(clean bool) {
 	backButton.SetDisabled(false)
 
 	formDown.AddButton("Quit", func() {
-		showQuitModal("Setup Cluster")
+		showQuitModal()
 	})
 	quitButton = formDown.GetButton(formDown.GetButtonIndex("Quit"))
 	quitButton.SetDisabled(false)

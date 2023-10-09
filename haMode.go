@@ -96,7 +96,7 @@ func initFlexHaMode() {
 	})
 
 	formDown.AddButton("Quit", func() {
-		showQuitModal("HA Mode")
+		showQuitModal()
 	})
 
 	flexHaMode.SetDirection(tview.FlexRow).
