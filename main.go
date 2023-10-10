@@ -65,13 +65,17 @@ func findKubesprayPath() {
 }
 
 func installDependencies() {
-	_, err := os.Stat("/root/.idocluster-dependencies-installed")
-	if err == nil {
+	_, err1 := os.Stat("/root/.idocluster-dependencies-installed")
+	_, err2 := os.Stat(filepath.Join(appPath, ".idocluster-dependencies-installed"))
+	if err1 == nil && err2 == nil {
 		findKubesprayPath()
 		return
 	}
-	if !errors.Is(err, os.ErrNotExist) {
-		panic(err)
+	if err1 != nil && !errors.Is(err1, os.ErrNotExist) {
+		panic(err1)
+	}
+	if err2 != nil && !errors.Is(err2, os.ErrNotExist) {
+		panic(err2)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray-*.tar.gz"))
@@ -98,6 +102,11 @@ func installDependencies() {
 	}
 
 	file, err := os.Create("/root/.idocluster-dependencies-installed")
+	check(err)
+	err = file.Close()
+	check(err)
+
+	file, err = os.Create(filepath.Join(appPath, ".idocluster-dependencies-installed"))
 	check(err)
 	err = file.Close()
 	check(err)
