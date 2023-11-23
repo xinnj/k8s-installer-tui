@@ -15,6 +15,7 @@ default_vars:
   metrics_server_enabled: true
   krew_enabled: true
   kube_apiserver_node_port_range: "30000-32767"
+  ingress_nginx_default: true
 configuable_vars:
   - description: "Enable NTP: "
     var:
