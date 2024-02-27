@@ -16,7 +16,7 @@ type AppConfig struct {
 	Python_repo            string
 	Predefined_node_labels map[string]string
 	Default_vars           map[string]any
-	Configuable_vars       []map[string]any
+	Configurable_vars      []map[string]any
 	Default_mirrors        []map[string]string
 }
 

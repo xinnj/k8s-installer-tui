@@ -13,7 +13,7 @@ func initFlexFeatures() {
 	newVars := make(map[string]any)
 	mapYaml := make(map[string]string)
 
-	for _, oneVar := range appConfig.Configuable_vars {
+	for _, oneVar := range appConfig.Configurable_vars {
 		var key string
 		var value any
 		for key, value = range oneVar["var"].(map[string]any) {
