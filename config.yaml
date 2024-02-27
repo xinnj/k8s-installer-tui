@@ -6,7 +6,6 @@ default_vars:
   download_localhost: true
   download_force_cache: true
   download_keep_remote_cache: false
-  download_cache_dir: /root/kubespray_cache
   container_manager_on_localhost: 'docker'
   image_command_tool_on_localhost: 'docker'
   calico_vxlan_mode: 'CrossSubnet'
@@ -17,6 +16,9 @@ default_vars:
   kube_apiserver_node_port_range: "30000-32767"
   ingress_nginx_default: true
 configurable_vars:
+  - description: "Cache dir for offline install: "
+    var:
+      download_cache_dir: '/root/kubespray_cache'
   - description: "Enable NTP: "
     var:
       ntp_enabled: true
