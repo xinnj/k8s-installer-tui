@@ -78,6 +78,8 @@ func installDependencies() {
 		panic(err2)
 	}
 
+	fmt.Println("Install dependencies...")
+
 	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray-*.tar.gz"))
 	check(err)
 	if matches == nil {
@@ -113,7 +115,16 @@ func installDependencies() {
 }
 
 func readConfig() {
-	data, err := os.ReadFile(filepath.Join(appPath, "config.yaml"))
+	var configPath string
+	if len(os.Args) > 1 {
+		var err error
+		configPath, err = filepath.Abs(os.Args[1])
+		check(err)
+	} else {
+		configPath = filepath.Join(appPath, "config.yaml")
+	}
+
+	data, err := os.ReadFile(configPath)
 	check(err)
 
 	err = yaml.Unmarshal(data, &appConfig)
