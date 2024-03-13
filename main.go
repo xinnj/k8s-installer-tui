@@ -94,12 +94,13 @@ func installDependencies() {
 		pythonRepoParam = " -i " + appConfig.Python_repo
 	}
 
-	cmds := []string{"yum install -y python3-pip podman podman-docker sshpass rsync",
+	cmds := []string{
+		"if [ -n \"$(which yum 2>/dev/null)\" ]; then pkg_mgr=yum; else pkg_mgr=apt; fi; $pkg_mgr install -y python3-pip podman podman-docker sshpass rsync",
 		"touch /etc/containers/nodocker",
 		"pip3 install -U -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
 		"pip3 install -U -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + pythonRepoParam}
 	for _, cmd := range cmds {
-		fmt.Println(cmd)
+		// fmt.Println(cmd)
 		execCommand(cmd, 0)
 	}
 
