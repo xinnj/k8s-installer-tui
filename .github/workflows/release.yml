@@ -20,7 +20,7 @@ jobs:
       run: go build
 
     - name: Package
-      run: chmod +x k8s-installer-tui && tar czf k8s-installer-tui-${{ github.ref_name }}.tgz --transform 's,^,k8s-installer-tui-${{ github.ref_name }}/,' ansible-playbooks ansible-roles images config.yaml k8s-installer-tui kubespray-*.tar.gz LICENSE README.md
+      run: chmod +x k8s-installer-tui && tar czf k8s-installer-tui-${{ github.ref_name }}.tgz --transform 's,^,k8s-installer-tui-${{ github.ref_name }}/,' ansible-playbooks ansible-roles images config.yaml k8s-installer-tui kubespray-*.tar.gz LICENSE README.md patches
 
     - name: Release
       uses: softprops/action-gh-release@v1

@@ -89,6 +89,8 @@ func installDependencies() {
 
 	findKubesprayPath()
 
+	execCommand("cp -af "+appPath+"/patches/* "+kubesprayPath, 0)
+
 	var pythonRepoParam string
 	if appConfig.Python_repo != "" {
 		pythonRepoParam = " -i " + appConfig.Python_repo
