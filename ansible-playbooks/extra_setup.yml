@@ -2,9 +2,6 @@
 - name: Check ansible version
   import_playbook: ansible_version.yml
 
-- name: Ensure compatibility with old groups
-  import_playbook: legacy_groups.yml
-
 # Set firewall rules
 - hosts: k8s_cluster:etcd:calico_rr
   gather_facts: False
