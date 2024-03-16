@@ -11,6 +11,8 @@ default_vars:
   calico_vxlan_mode: 'CrossSubnet'
   helm_enabled: true
   ingress_nginx_enabled: true
+  ingress_nginx_extra_args:
+    - --default-ssl-certificate=default/default-tls
   metrics_server_enabled: true
   krew_enabled: true
   kube_apiserver_node_port_range: "30000-32767"
