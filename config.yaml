@@ -31,6 +31,7 @@ default_vars:
         - host: http://nexus-docker-5001:5001
           capabilities: [ "pull", "resolve" ]
           skip_verify: true
+  auto_renew_certificates: true
 configurable_vars:
   - description: "Cache dir for offline install: "
     var:
