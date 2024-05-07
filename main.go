@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 const pythonRequirements = "requirements.txt"
@@ -102,8 +103,9 @@ func installDependencies() {
 		"pip3 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
 		"pip3 install -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + pythonRepoParam,
 	}
-	for _, cmd := range cmds {
-		// fmt.Println(cmd)
+	len := len(cmds)
+	for index, cmd := range cmds {
+		fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(len))
 		execCommand(cmd, 0)
 	}
 
