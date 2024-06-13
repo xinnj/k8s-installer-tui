@@ -12,6 +12,7 @@ func initFlexFeatures() {
 
 	newVars := make(map[string]any)
 	mapYaml := make(map[string]string)
+	sliceYaml := make(map[string]string)
 
 	for _, oneVar := range appConfig.Configurable_vars {
 		var key string
@@ -35,6 +36,13 @@ func initFlexFeatures() {
 				} else {
 					newVars[key] = false
 				}
+			})
+		case []any:
+			valueByte, err := yaml.Marshal(&value)
+			check(err)
+			valueString := string(valueByte)
+			formFeatures.AddTextArea(oneVar["description"].(string), valueString, 0, 0, 0, func(text string) {
+				sliceYaml[key] = text
 			})
 		case map[string]any:
 			valueByte, err := yaml.Marshal(&value)
@@ -63,6 +71,19 @@ func initFlexFeatures() {
 	formDown := tview.NewForm()
 
 	formDown.AddButton("Save & Next", func() {
+		for key, value := range sliceYaml {
+			var valueSlice []any
+			err := yaml.Unmarshal([]byte(value), valueSlice)
+			if err != nil {
+				showErrorModal(key+" has wrong format.",
+					func(buttonIndex int, buttonLabel string) {
+						pages.SwitchToPage("Features")
+					})
+			} else {
+				newVars[key] = valueSlice
+			}
+		}
+
 		for key, value := range mapYaml {
 			valueMap := make(map[string]any)
 			err := yaml.Unmarshal([]byte(value), valueMap)
