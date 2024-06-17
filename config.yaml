@@ -8,7 +8,6 @@ default_vars:
   download_keep_remote_cache: false
   container_manager_on_localhost: 'docker'
   image_command_tool_on_localhost: 'docker'
-  calico_vxlan_mode: 'CrossSubnet'
   helm_enabled: true
   ingress_nginx_enabled: true
   ingress_nginx_extra_args:

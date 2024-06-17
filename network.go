@@ -20,6 +20,18 @@ func initFlexNetwork() {
 	err = yaml.Unmarshal(data, &clusterVars)
 	check(err)
 
+	var calicoVxlanMode string
+	if extraVars["calico_vxlan_mode"] == nil {
+		calicoVxlanMode = "Always"
+	} else {
+		calicoVxlanMode = extraVars["calico_vxlan_mode"].(string)
+	}
+	calicoVxlanModes := []string{"Always", "CrossSubnet"}
+	initialOption := slices.Index(calicoVxlanModes, calicoVxlanMode)
+	formNetwork.AddDropDown("Calico Vxlan Mode: ", calicoVxlanModes, initialOption, func(option string, optionIndex int) {
+		calicoVxlanMode = option
+	})
+
 	var serviceCidr, podCidr string
 	if extraVars["kube_service_addresses"] == nil {
 		serviceCidr = clusterVars["kube_service_addresses"].(string)
@@ -105,6 +117,7 @@ func initFlexNetwork() {
 			}
 		}
 
+		extraVars["calico_vxlan_mode"] = calicoVxlanMode
 		extraVars["kube_service_addresses"] = serviceCidr
 		extraVars["kube_pods_subnet"] = podCidr
 		saveInventory()
