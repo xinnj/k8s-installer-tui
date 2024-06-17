@@ -23,6 +23,7 @@ type Host struct {
 	Ip           string
 	Access_ip    string
 	Node_labels  map[string]string
+	Node_taints  []string
 }
 
 type Inventory struct {

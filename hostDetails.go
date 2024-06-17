@@ -14,10 +14,12 @@ type HostDetails struct {
 	Access_ip    string
 	Groups       []string
 	Node_labels  map[string]string
+	Node_taints  []string
 }
 
 var hostDetails HostDetails
 var tmpNodeLabels string
+var tmpNodeTaints string
 
 func initFlexHostDetails(hostname string, readonly bool) {
 	getHostDetails(hostname)
@@ -48,6 +50,14 @@ func initFlexHostDetails(hostname string, readonly bool) {
 	}
 	formHostDetails.AddTextView("Node Labels: ", labelsString, 0, 0, false, true)
 
+	var taintsString string
+	if len(hostDetails.Node_taints) != 0 {
+		taints, err := yaml.Marshal(&hostDetails.Node_taints)
+		check(err)
+		taintsString = string(taints)
+	}
+	formHostDetails.AddTextView("Node Taints: ", taintsString, 0, 0, false, true)
+
 	formDown := tview.NewForm()
 
 	if readonly {
@@ -64,6 +74,11 @@ func initFlexHostDetails(hostname string, readonly bool) {
 				flexEditNodeLabels.Clear()
 				initFlexEditNodeLabels()
 				pages.SwitchToPage("Edit Node Labels")
+			}).
+			AddButton("Edit Node Taints", func() {
+				flexEditNodeTaints.Clear()
+				initFlexEditNodeTaints()
+				pages.SwitchToPage("Edit Node Taints")
 			})
 	}
 
@@ -153,7 +168,7 @@ func initFlexEditNodeLabels() {
 		var newLabels map[string]string
 		err := yaml.Unmarshal([]byte(tmpNodeLabels), &newLabels)
 		if err != nil {
-			showErrorModal("Node label format is wrong.",
+			showErrorModal("Node labels format (YAML Map) is wrong.",
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Edit Node Labels")
 				})
@@ -197,12 +212,78 @@ func initFlexEditNodeLabels() {
 		AddItem(formPredefinedLabels, 0, 1, false)
 }
 
+func initFlexEditNodeTaints() {
+	flexEditNodeTaints.SetTitle("Edit Node Taints").SetBorder(true)
+
+	formEditTaints := tview.NewForm()
+	formEditTaints.SetBorder(true)
+	formEditTaints.AddTextView("Hostname: ", hostDetails.Hostname, 0, 3, false, false)
+
+	if tmpNodeTaints == "" && len(hostDetails.Node_taints) != 0 {
+		taints, err := yaml.Marshal(&hostDetails.Node_taints)
+		check(err)
+		tmpNodeTaints = string(taints)
+	}
+
+	formEditTaints.AddTextArea("Node Taints: ", tmpNodeTaints, 0, 0, 0, func(text string) {
+		tmpNodeTaints = text
+	})
+
+	formEditTaints.AddButton("OK", func() {
+		var newTaints []string
+		err := yaml.Unmarshal([]byte(tmpNodeTaints), &newTaints)
+		if err != nil {
+			showErrorModal("Node taints format (YAML Array) is wrong.",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("Edit Node Taints")
+				})
+		} else {
+			hostDetails.Node_taints = newTaints
+			writeBackHostDetails()
+			tmpNodeTaints = ""
+			flexHostDetails.Clear()
+			initFlexHostDetails(hostDetails.Hostname, false)
+			pages.SwitchToPage("Edit Hosts")
+		}
+	})
+
+	formEditTaints.AddButton("Cancel", func() {
+		tmpNodeTaints = ""
+		pages.SwitchToPage("Edit Hosts")
+	})
+
+	formPredefinedTaints := tview.NewForm()
+	formPredefinedTaints.SetBorder(true)
+	var options []string
+	for _, value := range appConfig.Predefined_node_taints {
+		options = append(options, "- "+value)
+	}
+	slices.Sort(options)
+	var selectedTaint string
+	formPredefinedTaints.AddDropDown("Predefined Taints", options, -1, func(option string, optionIndex int) {
+		selectedTaint = option
+	})
+
+	formPredefinedTaints.AddButton("<< Add", func() {
+		if selectedTaint != "" {
+			tmpNodeTaints = tmpNodeTaints + selectedTaint + "\n"
+			flexEditNodeTaints.Clear()
+			initFlexEditNodeTaints()
+		}
+	})
+
+	flexEditNodeTaints.
+		AddItem(formEditTaints, 0, 2, true).
+		AddItem(formPredefinedTaints, 0, 1, false)
+}
+
 func getHostDetails(hostname string) {
 	hostDetails.Hostname = hostname
 	hostDetails.Ansible_host = inventory.All.Hosts[hostname].Ansible_host
 	hostDetails.Ip = inventory.All.Hosts[hostname].Ip
 	hostDetails.Access_ip = inventory.All.Hosts[hostname].Access_ip
 	hostDetails.Node_labels = inventory.All.Hosts[hostname].Node_labels
+	hostDetails.Node_taints = inventory.All.Hosts[hostname].Node_taints
 
 	var groups []string
 	if _, ok := inventory.All.Children.Kube_control_plane.Hosts[hostname]; ok {
@@ -226,6 +307,7 @@ func writeBackHostDetails() {
 	h.Ip = hostDetails.Ip
 	h.Access_ip = hostDetails.Access_ip
 	h.Node_labels = hostDetails.Node_labels
+	h.Node_taints = hostDetails.Node_taints
 
 	if slices.Contains(hostDetails.Groups, "kube_control_plane") {
 		inventory.All.Children.Kube_control_plane.Hosts[hostDetails.Hostname] = make(map[any]any)

@@ -16,6 +16,7 @@ const pythonRequirements = "requirements.txt"
 type AppConfig struct {
 	Python_repo            string
 	Predefined_node_labels map[string]string
+	Predefined_node_taints []string
 	Default_vars           map[string]any
 	Configurable_vars      []map[string]any
 	Default_mirrors        []map[string]string
@@ -33,6 +34,7 @@ var formNewProject = tview.NewForm()
 var flexEditHosts = tview.NewFlex()
 var formEditGroups = tview.NewForm()
 var flexEditNodeLabels = tview.NewFlex()
+var flexEditNodeTaints = tview.NewFlex()
 var formAddHost = tview.NewForm()
 var flexFeatures = tview.NewFlex()
 var flexHaMode = tview.NewFlex()
@@ -159,6 +161,7 @@ func main() {
 	pages.AddPage("Edit Hosts", flexEditHosts, true, false)
 	pages.AddPage("Edit Groups", formEditGroups, true, false)
 	pages.AddPage("Edit Node Labels", flexEditNodeLabels, true, false)
+	pages.AddPage("Edit Node Taints", flexEditNodeTaints, true, false)
 	pages.AddPage("Add Host", formAddHost, true, false)
 	pages.AddPage("Features", flexFeatures, true, false)
 	pages.AddPage("HA Mode", flexHaMode, true, false)
