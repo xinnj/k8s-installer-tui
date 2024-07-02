@@ -73,7 +73,7 @@ func initFlexFeatures() {
 	formDown.AddButton("Save & Next", func() {
 		for key, value := range sliceYaml {
 			var valueSlice []any
-			err := yaml.Unmarshal([]byte(value), valueSlice)
+			err := yaml.Unmarshal([]byte(value), &valueSlice)
 			if err != nil {
 				showErrorModal(key+" has wrong format.",
 					func(buttonIndex int, buttonLabel string) {
@@ -86,7 +86,7 @@ func initFlexFeatures() {
 
 		for key, value := range mapYaml {
 			valueMap := make(map[string]any)
-			err := yaml.Unmarshal([]byte(value), valueMap)
+			err := yaml.Unmarshal([]byte(value), &valueMap)
 			if err != nil {
 				showErrorModal(key+" has wrong format.",
 					func(buttonIndex int, buttonLabel string) {
