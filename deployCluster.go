@@ -140,7 +140,7 @@ func initFlexDeployCluster() {
 		if setupNewCluster {
 			initLog("create-cluster-")
 		} else {
-			initLog("modify-cluster-")
+			initLog("resize-cluster-")
 		}
 
 		// Copy SSH key

@@ -20,6 +20,13 @@ default_vars:
   kube_apiserver_node_port_range: "30000-32767"
   ingress_nginx_default: true
   auto_renew_certificates: true
+  etcd_metrics_port: 2381
+  etcd_metrics_service_labels:
+    k8s-app: etcd
+    app.kubernetes.io/managed-by: Kubespray
+    app: kube-prometheus-stack-kube-etcd
+    release: prometheus
+  kube_proxy_metrics_bind_address: "0.0.0.0:10249"
 configurable_vars:
   - description: "Cache dir for offline install: "
     var:

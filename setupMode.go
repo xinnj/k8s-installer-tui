@@ -7,14 +7,14 @@ func initFlexSetupMode() {
 	formSetupMode.SetTitle("Setup Mode")
 	formSetupMode.SetBorder(true)
 
-	formSetupMode.AddButton("Create A New Cluster", func() {
+	formSetupMode.AddButton("Create / Update Cluster", func() {
 		setupNewCluster = true
 		flexProject.Clear()
 		initFlexProject()
 		pages.SwitchToPage("Project")
 	})
 
-	formSetupMode.AddButton("Add Nodes To Existing Cluster", func() {
+	formSetupMode.AddButton("Add Nodes To Cluster", func() {
 		setupNewCluster = false
 		flexProject.Clear()
 		initFlexProject()
