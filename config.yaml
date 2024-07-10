@@ -27,6 +27,7 @@ default_vars:
     app: kube-prometheus-stack-kube-etcd
     release: prometheus
   kube_proxy_metrics_bind_address: "0.0.0.0:10249"
+  containerd_use_config_path: true
 configurable_vars:
   - description: "Cache dir for offline install: "
     var:
@@ -40,17 +41,9 @@ configurable_vars:
   - description: "Registry mirrors: "
     var:
       containerd_registries_mirrors:
-        - prefix: docker.io
+        - prefix: _default
           mirrors:
             - host: http://nexus-docker-5000:5000
-              capabilities: [ "pull", "resolve" ]
-              skip_verify: true
-            - host: https://registry-1.docker.io
-              capabilities: [ "pull", "resolve" ]
-              skip_verify: false
-        - prefix: nexus-docker-5001:5001
-          mirrors:
-            - host: http://nexus-docker-5001:5001
               capabilities: [ "pull", "resolve" ]
               skip_verify: true
   - description: "Install CSI snapshot controller: "
