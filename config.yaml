@@ -46,6 +46,9 @@ configurable_vars:
             - host: http://nexus-docker-5000:5000
               capabilities: [ "pull", "resolve" ]
               skip_verify: true
+  - description: "Install k8s-node-watcher: "
+    var:
+      install_k8s_node_watcher: true
   - description: "Install CSI snapshot controller: "
     var:
       csi_snapshot_controller_enabled: true

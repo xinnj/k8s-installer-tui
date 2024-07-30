@@ -115,7 +115,7 @@ chmod -R 700 %s
 	execCommand(cmdString, 0)
 
 	if setupNewCluster {
-		// Create a new cluster
+		// Create or update a cluster
 		cmdString = fmt.Sprintf(`
 set -euao pipefail
 
@@ -124,15 +124,19 @@ export key=%s
 export vars=%s
 export log=%s
 
-echo "====================Setup a new cluster====================" | tee -a "$log"
+echo "====================Setup / Update a cluster====================" | tee -a "$log"
 
-echo "====================playbooks/extra_setup.yml====================" | tee -a "$log"
+echo "====================playbooks/extra_setup_before.yml====================" | tee -a "$log"
 /usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  "playbooks/extra_setup.yml" 2>&1 | tee -a "$log"
+  "playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/cluster.yml====================" | tee -a "$log"
 /usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/cluster.yml" 2>&1 | tee -a "$log"
+
+echo "====================playbooks/extra_setup_after.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  "playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
 
 echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
@@ -142,7 +146,7 @@ echo | tee -a "$log"
   -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
 `, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
 	} else {
-		// Modify existing cluster
+		// Add node to existing cluster
 		var addedControlAndEtcdNodes, addedWorkNodes []string
 
 		for k, _ := range inventory.All.Children.Kube_control_plane.Hosts {
@@ -217,14 +221,18 @@ export key=%s
 export vars=%s
 export log=%s
 
-echo "====================Modify cluster====================" | tee -a "$log"
+echo "====================Add node to cluster====================" | tee -a "$log"
 
-echo "====================playbooks/extra_setup.yml====================" | tee -a "$log"
+echo "====================playbooks/extra_setup_before.yml====================" | tee -a "$log"
 /usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  "playbooks/extra_setup.yml" 2>&1 | tee -a "$log"
+  "playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
 
 %s
 %s
+
+echo "====================playbooks/extra_setup_after.yml====================" | tee -a "$log"
+/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+  "playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
 
 echo "====================Restart all nginx-proxy====================" | tee -a "$log"
 /usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \

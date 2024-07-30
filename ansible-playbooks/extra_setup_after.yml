@@ -1,0 +1,19 @@
+---
+- name: Check ansible version
+  import_playbook: ansible_version.yml
+
+# Install k8s-node-watcher
+- hosts: kube_control_plane[0]
+  gather_facts: False
+  roles:
+    - role: kubespray-defaults
+      when: install_k8s_node_watcher|default(false)
+    - role: helm-apps
+      when: install_k8s_node_watcher|default(false)
+      releases:
+        - name: k8s-node-watcher
+          namespace: k8s-node-watcher
+          chart_ref: "https://github.com/xinnj/k8s-node-watcher/releases/download/1.0.1/k8s-node-watcher-1.0.1.tgz"
+      repositories: []
+      release_common_opts:
+        create_namespace: true
