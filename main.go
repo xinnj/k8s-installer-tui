@@ -49,7 +49,7 @@ var flexSetupMode = tview.NewFlex()
 var setupNewCluster bool
 
 func findKubesprayPath() {
-	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray*"))
+	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray"))
 	check(err)
 	if matches == nil {
 		fmt.Println("Can't find kubespray directory.")
@@ -88,7 +88,7 @@ func installDependencies() {
 	if matches == nil {
 		panic("Can't find kubespray archive file.")
 	}
-	execCommand("tar xvf "+matches[0], 0)
+	execCommand("mkdir -p kubespray; tar xvf "+matches[0]+" -C ./kubespray --strip-components=1", 0)
 
 	findKubesprayPath()
 

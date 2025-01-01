@@ -1,0 +1,40 @@
+---
+- name: Gather host facts to get ansible_os_family
+  setup:
+    gather_subset: '!all'
+    filter: ansible_*
+
+- name: k8s-node-watcher | Download chart
+  include_tasks: "../../download/tasks/download_file.yml"
+  vars:
+    k8s_node_watcher_chart:
+      file: true
+      version: "1.0.1"
+      dest: "{{ local_release_dir }}/k8s-node-watcher-1.0.1.tgz"
+      sha256: ""
+      url: "https://github.com/xinnj/k8s-node-watcher/releases/download/1.0.1/k8s-node-watcher-1.0.1.tgz"
+      unarchive: false
+      owner: "root"
+      mode: "0755"
+      groups:
+        - kube_control_plane
+    download: "{{ download_defaults | combine(k8s_node_watcher_chart) }}"
+
+- name: k8s-node-watcher | Download image
+  include_tasks: "../../download/tasks/download_container.yml"
+  vars:
+    k8s_node_watcher_image:
+      container: true
+      repo: "{{ docker_image_repo }}/xinnj/k8s-node-watcher"
+      tag: "1.0.1"
+      sha256: ""
+      groups:
+        - kube_node
+    download: "{{ download_defaults | combine(k8s_node_watcher_image) }}"
+
+- name: k8s-node-watcher | Install Helm release
+  kubernetes.core.helm:
+    name: k8s-node-watcher
+    chart_ref: "{{ local_release_dir }}/k8s-node-watcher-1.0.1.tgz"
+    release_namespace: k8s-node-watcher
+    create_namespace: true
