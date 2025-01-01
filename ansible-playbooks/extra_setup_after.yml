@@ -8,12 +8,5 @@
   roles:
     - role: kubespray-defaults
       when: install_k8s_node_watcher|default(false)
-    - role: helm-apps
+    - role: k8s-node-watcher
       when: install_k8s_node_watcher|default(false)
-      releases:
-        - name: k8s-node-watcher
-          namespace: k8s-node-watcher
-          chart_ref: "https://github.com/xinnj/k8s-node-watcher/releases/download/1.0.1/k8s-node-watcher-1.0.1.tgz"
-      repositories: []
-      release_common_opts:
-        create_namespace: true
