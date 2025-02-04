@@ -144,7 +144,7 @@ echo | tee -a "$log"
 
 /usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
   -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
-`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
+`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
 	} else {
 		// Add node to existing cluster
 		var addedControlAndEtcdNodes, addedWorkNodes []string
@@ -190,7 +190,7 @@ echo "====================playbooks/upgrade_cluster.yml====================" | t
   --skip-tags=multus \
   --limit=etcd,kube_control_plane -e ignore_assert_errors=yes -e etcd_retries=10 \
   "playbooks/upgrade_cluster.yml" 2>&1 | tee -a "$log"
-`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
+`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
 		}
 
 		cmdAddWorkNode := ""
@@ -209,7 +209,7 @@ echo "====================playbooks/scale.yml====================" | tee -a "$lo
 /usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   --limit="%s" \
   "playbooks/scale.yml" 2>&1 | tee -a "$log"
-`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
+`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
 				strings.Join(addedWorkNodes, ","))
 		}
 
@@ -248,7 +248,7 @@ echo | tee -a "$log"
 
 /usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
   -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
-`, inventoryFile, keyFile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
+`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
 			cmdAddControlNode,
 			cmdAddWorkNode)
 	}
