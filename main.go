@@ -43,7 +43,7 @@ var flexMirror = tview.NewFlex()
 var flexDeployCluster = tview.NewFlex()
 var logFilePath string
 var flexSetupCluster = tview.NewFlex()
-var keyFile string
+var defaultSshKeyfile = filepath.Join(projectPath, "ansible-key")
 var extraVars map[string]any
 var flexSetupMode = tview.NewFlex()
 var setupNewCluster bool
