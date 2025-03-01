@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"os/exec"
 	"strings"
 )
 
@@ -86,9 +85,7 @@ func checkSshKey() (errorNodes []string) {
 			go func(ip string, resultCh chan copyResult) {
 				cmdString := fmt.Sprintf("ssh -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PasswordAuthentication=no -p 22 root@%s id",
 					defaultSshKeyfile, ip)
-				cmd := exec.Command("/bin/sh", "-c", cmdString)
-
-				_, err := cmd.CombinedOutput()
+				_, err := execCommand(cmdString, 0, false)
 				if err != nil {
 					resultCh <- copyResult{ip: ip, successful: false}
 				} else {
@@ -128,8 +125,7 @@ func copySshKeyToNode(rootPassword string) (errorNodes []string) {
 
 	_, err := os.Stat(defaultSshKeyfile)
 	if err != nil {
-		execCommand("mkdir -p /root/.ssh", 0)
-		execCommand("ssh-keygen -q -N '' -f \""+defaultSshKeyfile+"\"", 0)
+		execCommandAndCheck("rm -f \""+defaultSshKeyfile+"\"; ssh-keygen -q -N '' -f \""+defaultSshKeyfile+"\"", 0, inContainer)
 	}
 
 	var hostIps []string
@@ -145,9 +141,7 @@ func copySshKeyToNode(rootPassword string) (errorNodes []string) {
 			go func(ip string, resultCh chan copyResult) {
 				cmdString := fmt.Sprintf("echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p 22 root@%s",
 					rootPassword, defaultSshKeyfile, ip)
-				cmd := exec.Command("/bin/sh", "-c", cmdString)
-
-				_, err := cmd.CombinedOutput()
+				_, err := execCommand(cmdString, 0, inContainer)
 				if err != nil {
 					resultCh <- copyResult{ip: ip, successful: false}
 				} else {
@@ -174,6 +168,7 @@ func initFlexDeployCluster() {
 		formUp.SetTitle("Create New Cluster").SetBorder(true)
 	} else {
 		formUp.SetTitle("Modify Cluster").SetBorder(true)
+		accessMethod = accessMethodsType.new
 	}
 
 	if accessMethod == "" {

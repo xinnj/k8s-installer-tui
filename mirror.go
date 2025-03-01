@@ -66,16 +66,15 @@ func initFlexMirror() {
 
 	formDown.AddButton("Save & Next", func() {
 		if enableMirror {
-			execCommand("cp -f "+filepath.Join(projectPath, "group_vars/all/offline.yml")+" "+mirrorFile, 0)
+			execCommandAndCheck("cp -f "+filepath.Join(projectPath, "group_vars/all/offline.yml")+" "+mirrorFile, 0, false)
 
-			execCommand("sed -i -E '/# .*\\{\\{ files_repo/s/^# //g' "+mirrorFile, 0)
+			execCommandAndCheck("sed -i -E '/# .*\\{\\{ files_repo/s/^# //g' "+mirrorFile, 0, false)
 
 			for k, v := range mirrors {
 				extraVars[k] = v
 			}
 		} else {
-			err := os.Remove(mirrorFile)
-			check(err)
+			os.Remove(mirrorFile)
 
 			for k := range mirrors {
 				delete(extraVars, k)

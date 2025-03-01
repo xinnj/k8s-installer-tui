@@ -13,6 +13,16 @@ To setup a k8s cluster with terminal UI. Thanks to these two amazing projects:
 - Config service & pod CIDR, and perform potential IP conflicts checking (sampled)
 - Enable public download mirror to accelerate download speed in China
 - Auto create SSH key and copy to each node
+- Support offline install
+  - Execute the commands below to prepare the materials for offline install.
+    ```shell
+    mkdir -p /root/k8s-installer-offline
+    cd /root/k8s-installer-offline
+    curl -o podman-launcher-amd64 https://github.com/xinnj/podman-launcher/releases/download/1.0.0/podman-launcher-amd64
+    chmod +x podman-launcher-amd64
+    ./podman-launcher-amd64 pull docker.io/xinnj/kubespray-runtime:latest
+    ./podman-launcher-amd64 save docker.io/xinnj/kubespray-runtime:latest | gzip > docker.io_xinnj_kubespray-runtime.tgz
+    ```
 
 # Installation
 Download the release package, unpack it on a linux host and execute "k8s-installer-tui" with root privilege.

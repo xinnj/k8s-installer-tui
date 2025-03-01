@@ -65,6 +65,9 @@ func initFlexSetupCluster(clean bool) {
 						pages.SwitchToPage("Setup Cluster")
 					}
 					if buttonLabel == "Abort" {
+						if inContainer {
+							execCommandAndCheck(offlinePath+"/podman-launcher-amd64 rm -a -f", 0, false)
+						}
 						pgid, err := syscall.Getpgid(process.Pid)
 						check(err)
 						syscall.Kill(-pgid, 15)
@@ -112,12 +115,12 @@ chmod -R 700 %s
 `, filepath.Join(appPath, "ansible-roles/*"), filepath.Join(kubesprayPath, "roles/"),
 		filepath.Join(appPath, "ansible-playbooks/*"), filepath.Join(kubesprayPath, "playbooks/"),
 		kubesprayPath)
-	execCommand(cmdString, 0)
+	execCommandAndCheck(cmdString, 0, false)
 
 	if setupNewCluster {
 		// Create or update a cluster
 		cmdString = fmt.Sprintf(`
-set -euao pipefail
+set -eua
 
 export inventory=%s
 export key=%s
@@ -127,22 +130,22 @@ export log=%s
 echo "====================Setup / Update a cluster====================" | tee -a "$log"
 
 echo "====================playbooks/extra_setup_before.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/cluster.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/cluster.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/extra_setup_after.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
 
 echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
-/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
   -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
 `, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
 	} else {
@@ -180,13 +183,13 @@ export vars=%s
 export log=%s
 
 echo "====================playbooks/cluster.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   --skip-tags=multus \
   --limit=etcd,kube_control_plane -e ignore_assert_errors=yes -e etcd_retries=10 \
   "playbooks/cluster.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/upgrade_cluster.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   --skip-tags=multus \
   --limit=etcd,kube_control_plane -e ignore_assert_errors=yes -e etcd_retries=10 \
   "playbooks/upgrade_cluster.yml" 2>&1 | tee -a "$log"
@@ -202,11 +205,11 @@ export vars=%s
 export log=%s
 
 echo "====================playbooks/facts.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/facts.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/scale.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   --limit="%s" \
   "playbooks/scale.yml" 2>&1 | tee -a "$log"
 `, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
@@ -214,7 +217,7 @@ echo "====================playbooks/scale.yml====================" | tee -a "$lo
 		}
 
 		cmdString = fmt.Sprintf(`
-set -euao pipefail
+set -eua
 
 export inventory=%s
 export key=%s
@@ -224,36 +227,48 @@ export log=%s
 echo "====================Add node to cluster====================" | tee -a "$log"
 
 echo "====================playbooks/extra_setup_before.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
 
 %s
 %s
 
 echo "====================playbooks/extra_setup_after.yml====================" | tee -a "$log"
-/usr/local/bin/ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
 
 echo "====================Restart all nginx-proxy====================" | tee -a "$log"
-/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
   -m shell -a "kubectl get pod -n kube-system | grep nginx-proxy | awk '{print \$1}' | xargs -r kubectl delete pod -n kube-system"
 
 echo "====================Restart all nginx ingress controller====================" | tee -a "$log"
-/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
   -m shell -a "kubectl delete pod --all -n ingress-nginx"
 
 echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
-/usr/local/bin/ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
+ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
   -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
 `, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
 			cmdAddControlNode,
 			cmdAddWorkNode)
 	}
 
-	cmd := exec.Command("/bin/bash", "-c", cmdString)
+	createCommandFile(cmdString)
+
+	cmdArg := ""
+	if inContainer {
+		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --network=host --rm "+
+			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s /bin/sh -c 'cd %s; /bin/sh \"%s/._commands\"'",
+			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath,
+			kubesprayRuntime, kubesprayPath, projectPath)
+	} else {
+		cmdArg = fmt.Sprintf("\"%s/._commands\"", projectPath)
+	}
+
+	cmd := exec.Command("/bin/sh", "-c", cmdArg)
 	cmd.Dir = kubesprayPath
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

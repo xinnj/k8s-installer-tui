@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -18,24 +19,52 @@ func check(e error) {
 	}
 }
 
-func execCommand(cmdString string, timeout int, envs ...string) {
+func createCommandFile(cmdString string) {
+	file, err := os.OpenFile(projectPath+"/._commands", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	check(err)
+	defer file.Close()
+
+	_, err = file.WriteString(cmdString)
+	check(err)
+}
+
+func execCommand(cmdString string, timeout int, inContainer bool, envs ...string) ([]byte, error) {
 	var cmd *exec.Cmd
+
+	cmdArg := ""
+	paramEnvs := ""
+	if inContainer {
+		for _, env := range envs {
+			paramEnvs = paramEnvs + "-e " + env + " "
+		}
+
+		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --network=host --rm "+
+			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s %s /bin/sh -c \"%s\"",
+			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath, paramEnvs,
+			kubesprayRuntime, strings.ReplaceAll(cmdString, `"`, `\"`))
+	} else {
+		cmdArg = cmdString
+
+		//cmd.Env = os.Environ()
+		for _, env := range envs {
+			cmd.Env = append(cmd.Env, env)
+		}
+	}
 
 	if timeout > 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 		defer cancel()
 
-		cmd = exec.CommandContext(ctx, "/bin/sh", "-c", cmdString)
+		cmd = exec.CommandContext(ctx, "/bin/sh", "-c", cmdArg)
 	} else {
-		cmd = exec.Command("/bin/sh", "-c", cmdString)
+		cmd = exec.Command("/bin/sh", "-c", cmdArg)
 	}
 
-	cmd.Env = os.Environ()
-	for _, env := range envs {
-		cmd.Env = append(cmd.Env, env)
-	}
+	return cmd.CombinedOutput()
+}
 
-	output, err := cmd.CombinedOutput()
+func execCommandAndCheck(cmdString string, timeout int, inContainer bool, envs ...string) {
+	output, err := execCommand(cmdString, timeout, inContainer, envs...)
 	if err != nil {
 		app.Stop()
 		panic(string(output))

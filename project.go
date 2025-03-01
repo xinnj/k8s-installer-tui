@@ -185,7 +185,7 @@ func initFormNewProject() {
 			return
 		}
 
-		execCommand("cp -a "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0)
+		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
 		populateInventory()
 		flexEditHosts.Clear()
 		initFlexEditHosts("")
@@ -205,7 +205,7 @@ func populateInventory() {
 	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
 	ips := strings.Join(nodeIps, " ")
 	cmd := "python3 " + filepath.Join(kubesprayPath, inventoryBuilder) + " " + ips
-	execCommand(cmd, 0, "CONFIG_FILE="+inventoryFile, "HOST_PREFIX="+nodeHostnamePrefix)
+	execCommandAndCheck(cmd, 0, inContainer, "CONFIG_FILE="+inventoryFile, "HOST_PREFIX="+nodeHostnamePrefix)
 
 	data, err := os.ReadFile(inventoryFile)
 	check(err)
@@ -253,6 +253,8 @@ func loadInventory() {
 				})
 			return
 		}
+	} else {
+		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
 	}
 
 	data, err := os.ReadFile(inventoryFile)

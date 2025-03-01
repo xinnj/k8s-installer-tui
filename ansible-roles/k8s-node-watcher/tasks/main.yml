@@ -17,7 +17,7 @@
       owner: "root"
       mode: "0755"
       groups:
-        - kube_control_plane
+        - kube_control_plane[0]
     download: "{{ download_defaults | combine(k8s_node_watcher_chart) }}"
 
 - name: k8s-node-watcher | Download image
@@ -33,8 +33,14 @@
     download: "{{ download_defaults | combine(k8s_node_watcher_image) }}"
 
 - name: k8s-node-watcher | Install Helm release
+  delegate_to: "{{ groups['kube_control_plane'][0] }}"
+  run_once: true
   kubernetes.core.helm:
     name: k8s-node-watcher
     chart_ref: "{{ local_release_dir }}/k8s-node-watcher-1.0.1.tgz"
     release_namespace: k8s-node-watcher
     create_namespace: true
+    values:
+      replicaCount: "{{ 2 if groups['kube_node'] | length >= 2 else 1 }}"
+      image:
+        registry: "{{ docker_image_repo }}"

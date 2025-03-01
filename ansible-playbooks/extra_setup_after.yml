@@ -3,10 +3,14 @@
   import_playbook: ansible_version.yml
 
 # Install k8s-node-watcher
-- hosts: kube_control_plane[0]
+- hosts: k8s_cluster
   gather_facts: False
   roles:
     - role: kubespray-defaults
-      when: install_k8s_node_watcher|default(false)
+      when:
+        - install_k8s_node_watcher|default(false)
+        - groups['kube_node'] | length >= 2
     - role: k8s-node-watcher
-      when: install_k8s_node_watcher|default(false)
+      when:
+        - install_k8s_node_watcher|default(false)
+        - groups['kube_node'] | length >= 2

@@ -47,23 +47,25 @@ var defaultSshKeyfile = filepath.Join(projectPath, "ansible-key")
 var extraVars map[string]any
 var flexSetupMode = tview.NewFlex()
 var setupNewCluster bool
+var offlinePath = "/root/k8s-installer-offline"
+var inContainer bool
+var kubesprayRuntime = "docker.io/xinnj/kubespray-runtime"
 
-func findKubesprayPath() {
-	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray"))
-	check(err)
-	if matches == nil {
-		fmt.Println("Can't find kubespray directory.")
+func prepareKubespray() {
+	kubesprayPath = filepath.Join(appPath, "kubespray")
+	_, err := os.Stat(kubesprayPath)
+	// Path not exist, extract the package
+	if err != nil {
+		matches, err := filepath.Glob(filepath.Join(appPath, "kubespray-*.tar.gz"))
 		check(err)
-	}
-	for _, match := range matches {
-		f, err := os.Stat(match)
-		check(err)
-		if f.IsDir() {
-			kubesprayPath = match
+		if matches == nil {
+			panic("Can't find kubespray archive file.")
 		}
-	}
-	if kubesprayPath == "" {
-		panic("Can't find kubespray directory.")
+		cmd := fmt.Sprintf("mkdir -p %s;"+
+			"tar xvf %s -C %s --strip-components=1;"+
+			"cp -af %s/patches/* %s",
+			kubesprayPath, matches[0], kubesprayPath, appPath, kubesprayPath)
+		execCommandAndCheck(cmd, 0, false)
 	}
 }
 
@@ -71,7 +73,6 @@ func installDependencies() {
 	_, err1 := os.Stat("/root/.idocluster-dependencies-installed")
 	_, err2 := os.Stat(filepath.Join(appPath, ".idocluster-dependencies-installed"))
 	if err1 == nil && err2 == nil {
-		findKubesprayPath()
 		return
 	}
 	if err1 != nil && !errors.Is(err1, os.ErrNotExist) {
@@ -81,34 +82,32 @@ func installDependencies() {
 		panic(err2)
 	}
 
-	fmt.Println("Install dependencies...")
-
-	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray-*.tar.gz"))
-	check(err)
-	if matches == nil {
-		panic("Can't find kubespray archive file.")
-	}
-	execCommand("mkdir -p kubespray; tar xvf "+matches[0]+" -C ./kubespray --strip-components=1", 0)
-
-	findKubesprayPath()
-
-	execCommand("cp -af "+appPath+"/patches/* "+kubesprayPath, 0)
-
 	var pythonRepoParam string
 	if appConfig.Python_repo != "" {
 		pythonRepoParam = " -i " + appConfig.Python_repo
 	}
 
-	cmds := []string{
-		"if [ -n \"$(which yum 2>/dev/null)\" ]; then pkg_mgr=yum; else pkg_mgr=apt; fi; $pkg_mgr install -y python3-pip podman podman-docker sshpass rsync",
-		"touch /etc/containers/nodocker",
-		"pip3 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
-		"pip3 install -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + pythonRepoParam,
+	var cmds []string
+	if inContainer {
+		cmds = []string{
+			fmt.Sprintf("%s/podman-launcher-amd64 rmi -if %s", offlinePath, kubesprayRuntime),
+			fmt.Sprintf("%s/podman-launcher-amd64 load -i %s/docker.io_xinnj_kubespray-runtime.tar", offlinePath, offlinePath),
+		}
+	} else {
+		cmds = []string{
+			"if [ -n \"$(which yum 2>/dev/null)\" ]; then pkg_mgr=yum; else pkg_mgr=apt; fi; $pkg_mgr install -y python3-pip podman podman-docker sshpass rsync",
+			"touch /etc/containers/nodocker",
+			"pip3 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
+			"pip3 install -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + pythonRepoParam,
+		}
 	}
+
+	fmt.Println("Install dependencies. Please wait a while...")
+
 	len := len(cmds)
 	for index, cmd := range cmds {
 		fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(len))
-		execCommand(cmd, 0)
+		execCommandAndCheck(cmd, 0, false)
 	}
 
 	file, err := os.Create("/root/.idocluster-dependencies-installed")
@@ -142,11 +141,25 @@ func readConfig() {
 func main() {
 	checkRoot()
 
+	execCommandAndCheck("mkdir -p /root/.ssh", 0, false)
+
 	ex, err := os.Executable()
 	check(err)
 	appPath = filepath.Dir(ex)
 
+	_, err1 := os.Stat(offlinePath + "/podman-launcher-amd64")
+	_, err2 := os.Stat(offlinePath + "/docker.io_xinnj_kubespray-runtime.tar")
+	if err1 == nil && err2 == nil {
+		inContainer = true
+		fmt.Println("Install offline.")
+	} else {
+		inContainer = false
+		fmt.Println("Install online.")
+	}
+
 	readConfig()
+
+	prepareKubespray()
 
 	installDependencies()
 
