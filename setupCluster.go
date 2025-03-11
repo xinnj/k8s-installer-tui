@@ -69,8 +69,9 @@ func initFlexSetupCluster(clean bool) {
 							execCommandAndCheck(offlinePath+"/podman-launcher-amd64 rm -a -f", 0, false)
 						}
 						pgid, err := syscall.Getpgid(process.Pid)
-						check(err)
-						syscall.Kill(-pgid, 15)
+						if err == nil {
+							syscall.Kill(-pgid, 15)
+						}
 
 						abortButton.SetDisabled(true)
 						backButton.SetDisabled(false)
