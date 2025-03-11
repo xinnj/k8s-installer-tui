@@ -135,7 +135,7 @@ ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
   "playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/cluster.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" -e upgrade_cluster_setup=true \
   "playbooks/cluster.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/extra_setup_after.yml====================" | tee -a "$log"
