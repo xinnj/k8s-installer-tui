@@ -39,7 +39,7 @@ func execCommand(cmdString string, timeout int, inContainer bool, envs ...string
 		}
 
 		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --network=host --rm "+
-			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s %s /bin/sh -c \"%s\"",
+			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s %s /bin/bash -c \"%s\"",
 			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath, paramEnvs,
 			kubesprayRuntime, strings.ReplaceAll(cmdString, `"`, `\"`))
 	} else {
@@ -55,9 +55,9 @@ func execCommand(cmdString string, timeout int, inContainer bool, envs ...string
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 		defer cancel()
 
-		cmd = exec.CommandContext(ctx, "/bin/sh", "-c", cmdArg)
+		cmd = exec.CommandContext(ctx, "/bin/bash", "-c", cmdArg)
 	} else {
-		cmd = exec.Command("/bin/sh", "-c", cmdArg)
+		cmd = exec.Command("/bin/bash", "-c", cmdArg)
 	}
 
 	return cmd.CombinedOutput()
