@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"golang.org/x/exp/slices"
 	"regexp"
@@ -11,9 +12,12 @@ import (
 
 var flexHostDetails = tview.NewFlex()
 var removeButton *tview.Button
+var formHostsLeft = tview.NewForm()
+var formHostsDown = tview.NewForm()
 
 func initFlexEditHosts(selectedHostname string) {
-	formLeft := tview.NewForm().
+	formHostsLeft.Clear(true)
+	formHostsLeft.
 		AddButton("Add", func() {
 			formAddHost.Clear(true)
 			initFormAddHost()
@@ -26,11 +30,11 @@ func initFlexEditHosts(selectedHostname string) {
 			initFlexEditHosts("")
 		})
 
-	removeButton = formLeft.GetButton(formLeft.GetButtonIndex("Remove"))
+	removeButton = formHostsLeft.GetButton(formHostsLeft.GetButtonIndex("Remove"))
 
 	listHosts := tview.NewList().ShowSecondaryText(false)
 	for index, host := range getHostsList() {
-		listHosts.AddItem(host, "", rune(49+index), nil)
+		listHosts.AddItem(host, "", rune(97+index), nil)
 	}
 	listHosts.SetChangedFunc(func(index int, host string, secondaryText string, shortcut rune) {
 		hostname := strings.Split(host, ":")[0]
@@ -96,7 +100,7 @@ func initFlexEditHosts(selectedHostname string) {
 
 	flexLeft := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(listHosts, 0, 1, true).
-		AddItem(formLeft, 3, 1, false)
+		AddItem(formHostsLeft, 3, 1, false)
 	flexLeft.SetBorder(true)
 
 	flexUp := tview.NewFlex().
@@ -104,8 +108,8 @@ func initFlexEditHosts(selectedHostname string) {
 		AddItem(flexHostDetails, 0, 2, false)
 	flexUp.SetTitle("Edit Hosts").SetBorder(true)
 
-	formDown := tview.NewForm()
-	formDown.AddButton("Save & Next", func() {
+	formHostsDown.Clear(true)
+	formHostsDown.AddButton("Save & Next", func() {
 		if len(inventory.All.Children.Etcd.Hosts)%2 == 0 {
 			showErrorModal("ETCD node number should be odd. "+
 				"Current number is "+strconv.Itoa(len(inventory.All.Children.Etcd.Hosts))+".",
@@ -129,16 +133,48 @@ func initFlexEditHosts(selectedHostname string) {
 			pages.SwitchToPage("Deploy Cluster")
 		}
 	})
-	formDown.AddButton("Back", func() {
+	formHostsDown.AddButton("Back", func() {
 		pages.SwitchToPage("Project")
 	})
-	formDown.AddButton("Quit", func() {
+	formHostsDown.AddButton("Quit", func() {
 		showQuitModal()
 	})
 
 	flexEditHosts.SetDirection(tview.FlexRow).
 		AddItem(flexUp, 0, 1, true).
-		AddItem(formDown, 3, 1, false)
+		AddItem(formHostsDown, 3, 1, false)
+
+	app.SetFocus(listHosts)
+
+	listHosts.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN {
+			app.SetFocus(formHostsLeft)
+		}
+		if event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formHostsDown)
+		}
+		return event
+	})
+
+	formHostsLeft.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN {
+			app.SetFocus(flexHostDetails)
+		}
+		if event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(listHosts)
+		}
+		return event
+	})
+
+	formHostsDown.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN {
+			app.SetFocus(listHosts)
+		}
+		if event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(flexHostDetails)
+		}
+		return event
+	})
 }
 
 func initFormAddHost() {
@@ -209,7 +245,34 @@ func getHostsList() []string {
 		hostsList = append(hostsList, name+": "+host.Ansible_host)
 	}
 
-	slices.Sort(hostsList)
+	//slices.Sort(hostsList)
+	slices.SortFunc(hostsList, func(a, b string) int {
+		re := regexp.MustCompile("^(.+?)(\\d+)$")
+
+		aHostname := strings.Split(a, ":")[0]
+		bHostname := strings.Split(b, ":")[0]
+
+		aShortHostname := strings.Split(aHostname, ".")[0]
+		aMatches := re.FindStringSubmatch(aShortHostname)
+		aHostId, err := strconv.Atoi(aMatches[2])
+		if err != nil {
+			return strings.Compare(aHostname, bHostname)
+		}
+
+		bShortHostname := strings.Split(bHostname, ".")[0]
+		bMatches := re.FindStringSubmatch(bShortHostname)
+		bHostId, err := strconv.Atoi(bMatches[2])
+		if err != nil {
+			return strings.Compare(aHostname, bHostname)
+		}
+
+		if aHostId < bHostId {
+			return -1
+		} else if aHostId > bHostId {
+			return 1
+		}
+		return 0
+	})
 
 	return hostsList
 }

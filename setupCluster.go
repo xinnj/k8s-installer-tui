@@ -99,8 +99,24 @@ func initFlexSetupCluster(clean bool) {
 	quitButton.SetDisabled(false)
 
 	flexSetupCluster.SetDirection(tview.FlexRow).
-		AddItem(flexSetupClusterUp, 0, 1, true).
-		AddItem(formDown, 3, 1, false)
+		AddItem(flexSetupClusterUp, 0, 1, false).
+		AddItem(formDown, 3, 1, true)
+
+	app.SetFocus(formDown)
+
+	flexSetupClusterUp.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formDown)
+		}
+		return event
+	})
+
+	formDown.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(flexSetupClusterUp)
+		}
+		return event
+	})
 
 	go execCmd(logContent)
 	go updateTimer(stopTimer)

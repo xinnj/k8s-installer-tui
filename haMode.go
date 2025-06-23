@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -102,4 +103,20 @@ func initFlexHaMode() {
 	flexHaMode.SetDirection(tview.FlexRow).
 		AddItem(formHaMode, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
+
+	app.SetFocus(formHaMode)
+
+	formHaMode.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formDown)
+		}
+		return event
+	})
+
+	formDown.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formHaMode)
+		}
+		return event
+	})
 }

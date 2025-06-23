@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -138,4 +139,20 @@ func initFlexNetwork() {
 	flexNetwork.SetDirection(tview.FlexRow).
 		AddItem(formNetwork, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
+
+	app.SetFocus(formNetwork)
+
+	formNetwork.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formDown)
+		}
+		return event
+	})
+
+	formDown.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formNetwork)
+		}
+		return event
+	})
 }

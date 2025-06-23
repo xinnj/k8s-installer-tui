@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"os"
 	"path/filepath"
@@ -100,4 +101,20 @@ func initFlexMirror() {
 	flexMirror.SetDirection(tview.FlexRow).
 		AddItem(formMirror, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
+
+	app.SetFocus(formMirror)
+
+	formMirror.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formDown)
+		}
+		return event
+	})
+
+	formDown.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formMirror)
+		}
+		return event
+	})
 }

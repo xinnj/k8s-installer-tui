@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -87,6 +88,28 @@ func initFlexHostDetails(hostname string, readonly bool) {
 		AddItem(formHostDetails, 0, 1, true).
 		AddItem(formDown, 3, 1, false)
 	flexHostDetails.SetBorder(true)
+
+	//app.SetFocus(formHostDetails)
+
+	formHostDetails.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN {
+			app.SetFocus(formDown)
+		}
+		if event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formHostsLeft)
+		}
+		return event
+	})
+
+	formDown.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formHostsDown)
+		}
+		if event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formHostDetails)
+		}
+		return event
+	})
 }
 
 func initFormEditGroups() {
@@ -210,6 +233,22 @@ func initFlexEditNodeLabels() {
 	flexEditNodeLabels.
 		AddItem(formEditLabels, 0, 2, true).
 		AddItem(formPredefinedLabels, 0, 1, false)
+
+	app.SetFocus(formEditLabels)
+
+	formEditLabels.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formPredefinedLabels)
+		}
+		return event
+	})
+
+	formPredefinedLabels.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formEditLabels)
+		}
+		return event
+	})
 }
 
 func initFlexEditNodeTaints() {
@@ -275,6 +314,22 @@ func initFlexEditNodeTaints() {
 	flexEditNodeTaints.
 		AddItem(formEditTaints, 0, 2, true).
 		AddItem(formPredefinedTaints, 0, 1, false)
+
+	app.SetFocus(formEditTaints)
+
+	formEditTaints.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formPredefinedTaints)
+		}
+		return event
+	})
+
+	formPredefinedTaints.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formEditTaints)
+		}
+		return event
+	})
 }
 
 func getHostDetails(hostname string) {
