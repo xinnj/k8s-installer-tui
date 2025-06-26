@@ -1,6 +1,6 @@
 module k8s-installer-tui
 
-go 1.19
+go 1.20
 
 require (
 	github.com/rivo/tview v0.0.0-20230826224341-9754ab44dc1c
