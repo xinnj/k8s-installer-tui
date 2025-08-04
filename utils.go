@@ -44,11 +44,6 @@ func execCommand(cmdString string, timeout int, inContainer bool, envs ...string
 			kubesprayRuntime, strings.ReplaceAll(cmdString, `"`, `\"`))
 	} else {
 		cmdArg = cmdString
-
-		//cmd.Env = os.Environ()
-		for _, env := range envs {
-			cmd.Env = append(cmd.Env, env)
-		}
 	}
 
 	if timeout > 0 {
@@ -58,6 +53,12 @@ func execCommand(cmdString string, timeout int, inContainer bool, envs ...string
 		cmd = exec.CommandContext(ctx, "/bin/bash", "-c", cmdArg)
 	} else {
 		cmd = exec.Command("/bin/bash", "-c", cmdArg)
+	}
+
+	if !inContainer {
+		for _, env := range envs {
+			cmd.Env = append(cmd.Env, env)
+		}
 	}
 
 	return cmd.CombinedOutput()

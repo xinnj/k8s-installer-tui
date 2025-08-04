@@ -95,8 +95,10 @@ func installDependencies() {
 		}
 	} else {
 		cmds = []string{
-			"if [ -n \"$(which yum 2>/dev/null)\" ]; then pkg_mgr=yum; else pkg_mgr=apt; fi; $pkg_mgr install -y python3-pip podman podman-docker sshpass rsync",
-			"touch /etc/containers/nodocker",
+			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
+				"if ! command -v docker &>/dev/null; then $pkg_mgr install -y podman podman-docker; touch /etc/containers/nodocker; fi",
+			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
+				"$pkg_mgr install -y python3-pip sshpass rsync",
 			"pip3 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
 			"pip3 install -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + pythonRepoParam,
 		}
@@ -104,9 +106,9 @@ func installDependencies() {
 
 	fmt.Println("Install dependencies. Please wait a while...")
 
-	len := len(cmds)
+	cmdsLen := len(cmds)
 	for index, cmd := range cmds {
-		fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(len))
+		fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(cmdsLen))
 		execCommandAndCheck(cmd, 0, false)
 	}
 
