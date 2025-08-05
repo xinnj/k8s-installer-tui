@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
-	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v3"
 	"io"
 	"math"
 	"os"
 	"strings"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v3"
 )
 
 type AccessMethodType struct {
@@ -45,7 +46,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	return os.Chmod(dst, mode)
 }
 
-func checkSshKey() (errorNodes []string) {
+func checkSshKey() (errorNodes []string, err error) {
 	if sshKeyFile != defaultSshKeyfile {
 		err := copyFile(sshKeyFile, defaultSshKeyfile, 0600)
 		if err != nil {
@@ -53,7 +54,7 @@ func checkSshKey() (errorNodes []string) {
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Deploy Cluster")
 				})
-			return
+			return nil, err
 		}
 	}
 
@@ -104,7 +105,7 @@ func checkSshKey() (errorNodes []string) {
 		}
 	}
 
-	return errorNodes
+	return errorNodes, nil
 }
 
 func copySshKeyToNode(rootPassword string) (errorNodes []string) {
@@ -299,7 +300,10 @@ func initFlexDeployCluster() {
 				ch <- true
 			}()
 
-			errorNodes := checkSshKey()
+			errorNodes, err := checkSshKey()
+			if err != nil {
+				return
+			}
 
 			// Wait until modal draw finish
 			<-ch

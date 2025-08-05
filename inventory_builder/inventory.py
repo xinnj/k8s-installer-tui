@@ -240,7 +240,7 @@ class KubesprayInventory(object):
                     next_host = next_host.strip().decode('ascii')
                 else:
                     # Generates a hostname because we have only an IP address
-                    next_host = "{0}{1}".format(HOST_PREFIX,)
+                    next_host = "{0}{1}".format(HOST_PREFIX, next_host_id)
                     next_host_id += 1
                 # Uses automatically generated node name
                 # in case we dont provide it.

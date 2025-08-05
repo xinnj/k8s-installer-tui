@@ -280,7 +280,7 @@ ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
 		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --network=host --rm "+
 			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s /bin/bash -c 'cd %s; /bin/bash \"%s/._commands\"'",
 			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath,
-			kubesprayRuntime, kubesprayPath, projectPath)
+			kubesprayRuntimeTag, kubesprayPath, projectPath)
 	} else {
 		cmdArg = fmt.Sprintf("\"%s/._commands\"", projectPath)
 	}

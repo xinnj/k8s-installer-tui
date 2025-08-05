@@ -80,6 +80,7 @@ func initFlexFeatures() {
 					func(buttonIndex int, buttonLabel string) {
 						pages.SwitchToPage("Features")
 					})
+				return
 			} else {
 				newVars[key] = valueSlice
 			}
@@ -93,6 +94,7 @@ func initFlexFeatures() {
 					func(buttonIndex int, buttonLabel string) {
 						pages.SwitchToPage("Features")
 					})
+				return
 			} else {
 				newVars[key] = valueMap
 			}

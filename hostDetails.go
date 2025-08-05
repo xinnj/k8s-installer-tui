@@ -195,6 +195,7 @@ func initFlexEditNodeLabels() {
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Edit Node Labels")
 				})
+			return
 		} else {
 			hostDetails.Node_labels = newLabels
 			writeBackHostDetails()
@@ -276,6 +277,7 @@ func initFlexEditNodeTaints() {
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Edit Node Taints")
 				})
+			return
 		} else {
 			hostDetails.Node_taints = newTaints
 			writeBackHostDetails()
