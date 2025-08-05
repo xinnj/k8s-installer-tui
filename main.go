@@ -3,12 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+	"gopkg.in/yaml.v3"
 )
 
 const pythonRequirements = "requirements.txt"
@@ -49,7 +50,8 @@ var flexSetupMode = tview.NewFlex()
 var setupNewCluster bool
 var offlinePath = "/root/k8s-installer-offline"
 var inContainer bool
-var kubesprayRuntime = "docker.io/xinnj/kubespray-runtime"
+var kubesprayRuntimeTag = "docker.io/xinnj/kubespray-runtime:2.28.0"
+var kubesprayRuntimeFile = "docker.io_xinnj_kubespray-runtime-2.28.0.tar"
 
 func prepareKubespray() {
 	kubesprayPath = filepath.Join(appPath, "kubespray")
@@ -90,17 +92,18 @@ func installDependencies() {
 	var cmds []string
 	if inContainer {
 		cmds = []string{
-			fmt.Sprintf("%s/podman-launcher-amd64 rmi -if %s", offlinePath, kubesprayRuntime),
-			fmt.Sprintf("%s/podman-launcher-amd64 load -i %s/docker.io_xinnj_kubespray-runtime.tar", offlinePath, offlinePath),
+			fmt.Sprintf("%s rmi -if %s", filepath.Join(offlinePath, "podman-launcher-amd64"), kubesprayRuntimeTag),
+			fmt.Sprintf("%s load -i %s", filepath.Join(offlinePath, "podman-launcher-amd64"), filepath.Join(offlinePath, kubesprayRuntimeFile)),
 		}
 	} else {
 		cmds = []string{
 			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
 				"if ! command -v docker &>/dev/null; then $pkg_mgr install -y podman podman-docker; touch /etc/containers/nodocker; fi",
 			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
-				"$pkg_mgr install -y python3-pip sshpass rsync",
-			"pip3 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
-			"pip3 install -r " + filepath.Join(kubesprayPath, "contrib/inventory_builder/requirements.txt") + pythonRepoParam,
+				"$pkg_mgr install -y python3.11 sshpass rsync",
+			"if command -v yum &>/dev/null; then python3.11 -m ensurepip --default-pip; else python3.11 -m pip install --upgrade pip; fi;",
+			"pip3.11 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
+			"pip3.11 install -r " + filepath.Join(appPath, "inventory_builder/requirements.txt") + pythonRepoParam,
 		}
 	}
 
@@ -149,8 +152,8 @@ func main() {
 	check(err)
 	appPath = filepath.Dir(ex)
 
-	_, err1 := os.Stat(offlinePath + "/podman-launcher-amd64")
-	_, err2 := os.Stat(offlinePath + "/docker.io_xinnj_kubespray-runtime.tar")
+	_, err1 := os.Stat(filepath.Join(offlinePath, "podman-launcher-amd64"))
+	_, err2 := os.Stat(filepath.Join(offlinePath, kubesprayRuntimeFile))
 	if err1 == nil && err2 == nil {
 		inContainer = true
 		fmt.Println("Install offline.")

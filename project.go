@@ -1,15 +1,16 @@
 package main
 
 import (
-	"github.com/rivo/tview"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/rivo/tview"
+	"gopkg.in/yaml.v3"
 )
 
-const inventoryBuilder = "contrib/inventory_builder/inventory.py"
+const inventoryBuilder = "inventory_builder/inventory.py"
 
 var inventoryFile string
 var nodeIps []string
@@ -86,7 +87,10 @@ func initFlexProject() {
 			return
 		}
 
-		loadInventory()
+		err := loadInventory()
+		if err != nil {
+			return
+		}
 
 		flexEditHosts.Clear()
 		initFlexEditHosts("")
@@ -204,7 +208,7 @@ func populateInventory() {
 
 	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
 	ips := strings.Join(nodeIps, " ")
-	cmd := "python3 " + filepath.Join(kubesprayPath, inventoryBuilder) + " " + ips
+	cmd := "python3 " + filepath.Join(appPath, inventoryBuilder) + " " + ips
 	execCommandAndCheck(cmd, 0, inContainer, "CONFIG_FILE="+inventoryFile, "HOST_PREFIX="+nodeHostnamePrefix)
 
 	data, err := os.ReadFile(inventoryFile)
@@ -222,7 +226,7 @@ func populateInventory() {
 	}
 }
 
-func loadInventory() {
+func loadInventory() error {
 	inventory = Inventory{}
 	originalInventory = Inventory{}
 	extraVars = make(map[string]any)
@@ -242,7 +246,7 @@ func loadInventory() {
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Project")
 				})
-			return
+			return err
 		}
 
 		err = yaml.Unmarshal(data, &originalInventory)
@@ -251,7 +255,7 @@ func loadInventory() {
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Project")
 				})
-			return
+			return err
 		}
 	} else {
 		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
@@ -263,7 +267,7 @@ func loadInventory() {
 			func(buttonIndex int, buttonLabel string) {
 				pages.SwitchToPage("Project")
 			})
-		return
+		return err
 	}
 
 	err = yaml.Unmarshal(data, &inventory)
@@ -272,7 +276,7 @@ func loadInventory() {
 			func(buttonIndex int, buttonLabel string) {
 				pages.SwitchToPage("Project")
 			})
-		return
+		return err
 	}
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
@@ -286,9 +290,11 @@ func loadInventory() {
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Project")
 				})
-			return
+			return err
 		}
 	}
+
+	return nil
 }
 
 func saveInventory() {

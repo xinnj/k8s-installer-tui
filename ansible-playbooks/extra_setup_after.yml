@@ -6,7 +6,7 @@
 - hosts: k8s_cluster
   gather_facts: False
   roles:
-    - role: kubespray-defaults
+    - role: kubespray_defaults
       when:
         - install_k8s_node_watcher|default(false)
         - groups['kube_node'] | length >= 2

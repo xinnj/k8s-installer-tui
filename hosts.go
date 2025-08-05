@@ -2,12 +2,13 @@ package main
 
 import (
 	"errors"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
-	"golang.org/x/exp/slices"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+	"golang.org/x/exp/slices"
 )
 
 var flexHostDetails = tview.NewFlex()
@@ -203,11 +204,13 @@ func initFormAddHost() {
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Add Host")
 				})
+			return
 		} else if newHostDetails.Ip == "" {
 			showErrorModal("Please provide IP address.",
 				func(buttonIndex int, buttonLabel string) {
 					pages.SwitchToPage("Add Host")
 				})
+			return
 		} else {
 			currentHostsNum := len(inventory.All.Hosts)
 			switch currentHostsNum {

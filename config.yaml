@@ -1,3 +1,4 @@
+unsafe_show_logs: true
 python_repo: "https://pypi.tuna.tsinghua.edu.cn/simple"
 predefined_node_labels:
   zone: "zone1"
@@ -16,6 +17,8 @@ default_vars:
   ingress_nginx_enabled: true
   ingress_nginx_extra_args:
     - --default-ssl-certificate=default/default-tls
+  ingress_nginx_configmap:
+    use-forwarded-headers: "false"
   metrics_server_enabled: true
   kube_apiserver_node_port_range: "30000-32767"
   ingress_nginx_default: true
@@ -39,6 +42,7 @@ configurable_vars:
     var:
       containerd_registries_mirrors:
         - prefix: _default
+          server: ""
           mirrors:
             - host: http://nexus-docker-5000:5000
               capabilities: [ "pull", "resolve" ]
