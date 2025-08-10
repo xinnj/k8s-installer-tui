@@ -4,38 +4,52 @@
     gather_subset: '!all'
     filter: ansible_*
 
-- name: get service facts
+- name: Pre-define firewall-running flags (defaults)
+  ansible.builtin.set_fact:
+    firewalld_running: false
+    ufw_running: false
+
+- name: Collect service facts
   ansible.builtin.service_facts:
 
-- name: Check if firewalld is available (RedHat)
-  ansible.builtin.stat:
-    path: /usr/sbin/firewall-cmd
-  register: firewalld_available
-  when: ansible_os_family == 'RedHat'
-
-- name: Check if ufw is available (Debian)
-  ansible.builtin.stat:
-    path: /usr/sbin/ufw
-  register: ufw_available
-  when: ansible_os_family == 'Debian'
-
-- name: Set firewall facts
+- name: Check if firewalld is running (RedHat)
   ansible.builtin.set_fact:
-    firewall_available: "{{ (ansible_os_family == 'RedHat' and firewalld_available.stat.exists) or (ansible_os_family == 'Debian' and ufw_available.stat.exists) }}"
-    firewall_service: "{{ 'firewalld' if ansible_os_family == 'RedHat' else 'ufw' if ansible_os_family == 'Debian' else '' }}"
+    firewalld_running: "{{ ansible_facts.services['firewalld.service']['state'] == 'running' }}"
+  when:
+    - ansible_os_family == "RedHat"
+    - "'firewalld.service' in ansible_facts.services"
 
-- name: Debug message if firewall is not available
+- name: Debug message if firewalld is not running (RedHat)
   ansible.builtin.debug:
-    msg: "Skipping firewall configuration - {{ firewall_service }} is not installed"
-  when: not firewall_available
+    msg: "Firewalld service is not running, skip configuration."
+  when:
+    - ansible_os_family == "RedHat"
+    - not firewalld_running
+
+- name: Check UFW status via command (Debian)
+  ansible.builtin.command: ufw status
+  register: ufw_status
+  changed_when: false
+  when: ansible_os_family == "Debian"
+
+- name: Check if UFW is running (Debian)
+  ansible.builtin.set_fact:
+    ufw_running: "{{ 'Status: active' in ufw_status.stdout }}"
+  when: ansible_os_family == "Debian"
+
+- name: Debug message if UFW is not running (Debian)
+  ansible.builtin.debug:
+    msg: "Ufw service is not running, skip configuration."
+  when:
+    - ansible_os_family == "Debian"
+    - not ufw_running
 
 - name: Set rules for 'RedHat' family - public service
   ansible.builtin.shell:
     cmd: "firewall-cmd --permanent --zone=public --add-service=http --add-service=https"
   when:
     - ansible_os_family == 'RedHat'
-    - firewall_available
-    - ansible_facts.services["firewalld.service"]['state'] == 'running'
+    - firewalld_running
 
 - name: Set rules for 'RedHat' family - public port
   ansible.builtin.shell:
@@ -43,16 +57,14 @@
       --add-port={{ loadbalancer_apiserver_port }}/tcp"
   when:
     - ansible_os_family == 'RedHat'
-    - firewall_available
-    - ansible_facts.services["firewalld.service"]['state'] == 'running'
+    - firewalld_running
 
 - name: Set rules for 'RedHat' family - internal subset
   ansible.builtin.shell:
     cmd: "firewall-cmd --permanent --zone=trusted --add-source={{ item }}"
   when:
     - ansible_os_family == 'RedHat'
-    - firewall_available
-    - ansible_facts.services["firewalld.service"]['state'] == 'running'
+    - firewalld_running
   with_items:
     - "{{ kube_service_addresses }}"
     - "{{ kube_pods_subnet }}"
@@ -63,8 +75,7 @@
       --add-source={{ hostvars[item]['ip'] if hostvars[item]['ip'] is defined else hostvars[item]['ansible_host'] }}"
   when:
     - ansible_os_family == 'RedHat'
-    - firewall_available
-    - ansible_facts.services["firewalld.service"]['state'] == 'running'
+    - firewalld_running
   with_items: "{{ groups['all'] }}"
 
 - name: Set rules for 'RedHat' family - reload
@@ -72,8 +83,7 @@
     cmd: "firewall-cmd --reload"
   when:
     - ansible_os_family == 'RedHat'
-    - firewall_available
-    - ansible_facts.services["firewalld.service"]['state'] == 'running'
+    - firewalld_running
 
 - name: Set rules for 'Debian' family - public
   ansible.builtin.shell:
@@ -83,14 +93,14 @@
       && ufw allow {{ loadbalancer_apiserver_port }}/tcp"
   when:
     - ansible_os_family == 'Debian'
-    - firewall_available
+    - ufw_running
 
 - name: Set rules for 'Debian' family - internal subset
   ansible.builtin.shell:
     cmd: "ufw allow from {{ item }}"
   when:
     - ansible_os_family == 'Debian'
-    - firewall_available
+    - ufw_running
   with_items:
     - "{{ kube_service_addresses }}"
     - "{{ kube_pods_subnet }}"
@@ -100,5 +110,5 @@
     cmd: "ufw allow from {{ hostvars[item]['ip'] if hostvars[item]['ip'] is defined else hostvars[item]['ansible_host'] }}"
   when:
     - ansible_os_family == 'Debian'
-    - firewall_available
+    - ufw_running
   with_items: "{{ groups['all'] }}"
