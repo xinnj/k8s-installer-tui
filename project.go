@@ -21,6 +21,7 @@ var nodeHostnamePrefix = "node"
 
 type Host struct {
 	Ansible_host string
+	Ansible_port string
 	Ip           string
 	Access_ip    string
 	Node_labels  map[string]string
@@ -216,6 +217,13 @@ func populateInventory() {
 	err = yaml.Unmarshal(data, &inventory)
 	check(err)
 
+	for name, host := range inventory.All.Hosts {
+		if host.Ansible_port == "" {
+			host.Ansible_port = "22"
+			inventory.All.Hosts[name] = host
+		}
+	}
+
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
 	_, err = os.Stat(extraVarsFile)
 	if err == nil {
@@ -257,6 +265,13 @@ func loadInventory() error {
 				})
 			return err
 		}
+
+		for name, host := range originalInventory.All.Hosts {
+			if host.Ansible_port == "" {
+				host.Ansible_port = "22"
+				originalInventory.All.Hosts[name] = host
+			}
+		}
 	} else {
 		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
 	}
@@ -277,6 +292,13 @@ func loadInventory() error {
 				pages.SwitchToPage("Project")
 			})
 		return err
+	}
+
+	for name, host := range inventory.All.Hosts {
+		if host.Ansible_port == "" {
+			host.Ansible_port = "22"
+			inventory.All.Hosts[name] = host
+		}
 	}
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")

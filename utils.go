@@ -38,7 +38,7 @@ func execCommand(cmdString string, timeout int, inContainer bool, envs ...string
 			paramEnvs = paramEnvs + "-e " + env + " "
 		}
 
-		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --network=host --rm "+
+		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --privileged --network=host --rm "+
 			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s %s /bin/bash -c \"%s\"",
 			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath, paramEnvs,
 			kubesprayRuntimeTag, strings.ReplaceAll(cmdString, `"`, `\"`))

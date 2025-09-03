@@ -194,6 +194,7 @@ func initFormAddHost() {
 
 	formAddHost.AddInputField("IP: ", "", 0, nil, func(text string) {
 		newHostDetails.Ansible_host = text
+		newHostDetails.Ansible_port = "22"
 		newHostDetails.Ip = text
 		newHostDetails.Access_ip = text
 	})

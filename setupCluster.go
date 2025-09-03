@@ -2,9 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
-	"golang.org/x/exp/slices"
 	"io"
 	"os"
 	"os/exec"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+	"golang.org/x/exp/slices"
 )
 
 var process *os.Process
@@ -277,7 +278,7 @@ ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
 
 	cmdArg := ""
 	if inContainer {
-		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --network=host --rm "+
+		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --privileged --network=host --rm "+
 			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s /bin/bash -c 'cd %s; /bin/bash \"%s/._commands\"'",
 			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath,
 			kubesprayRuntimeTag, kubesprayPath, projectPath)

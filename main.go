@@ -98,12 +98,14 @@ func installDependencies() {
 	} else {
 		cmds = []string{
 			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
-				"if ! command -v docker &>/dev/null; then $pkg_mgr install -y podman podman-docker; touch /etc/containers/nodocker; fi",
+				"if ! command -v docker &>/dev/null; then sudo $pkg_mgr install -y podman podman-docker; sudo touch /etc/containers/nodocker; fi",
 			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
-				"$pkg_mgr install -y python3.11 sshpass rsync",
-			"if command -v yum &>/dev/null; then python3.11 -m ensurepip --default-pip; else python3.11 -m pip install --upgrade pip; fi;",
-			"pip3.11 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
-			"pip3.11 install -r " + filepath.Join(appPath, "inventory_builder/requirements.txt") + pythonRepoParam,
+				"sudo $pkg_mgr install -y python3.12 sshpass rsync",
+			"PYTHON3_PATH=$(which python3); if [ -z \"$PYTHON3_PATH\" ]; then sudo ln -s $(which python3.12) \"$PYTHON3_PATH\";" +
+				"else sudo mv \"$PYTHON3_PATH\" \"${PYTHON3_PATH}.bak\"; sudo ln -s $(which python3.12) \"$PYTHON3_PATH\"; fi",
+			"if command -v yum &>/dev/null; then python3 -m ensurepip --default-pip; else python3 -m pip install --upgrade pip; fi;",
+			"pip3 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
+			"pip3 install -r " + filepath.Join(appPath, "inventory_builder/requirements.txt") + pythonRepoParam,
 		}
 	}
 
