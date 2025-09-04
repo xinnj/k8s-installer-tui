@@ -7,7 +7,6 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -38,9 +37,9 @@ func execCommand(cmdString string, timeout int, inContainer bool, envs ...string
 			paramEnvs = paramEnvs + "-e " + env + " "
 		}
 
-		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --privileged --network=host --rm "+
-			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s %s /bin/bash -c \"%s\"",
-			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath, paramEnvs,
+		cmdArg = fmt.Sprintf("sudo %s run --privileged --network=host --replace --name kubespray --rm "+
+			"-v '%s':'/data/k8s-installer-tui' -v '%s':'/data/idocluster' -v '%s':'/data/k8s-installer-offline' %s %s /bin/bash -c \"%s\"",
+			containerTool, appPath, projectPath, offlinePath, paramEnvs,
 			kubesprayRuntimeTag, strings.ReplaceAll(cmdString, `"`, `\"`))
 	} else {
 		cmdArg = cmdString
@@ -64,20 +63,19 @@ func execCommand(cmdString string, timeout int, inContainer bool, envs ...string
 	return cmd.CombinedOutput()
 }
 
-func execCommandAndCheck(cmdString string, timeout int, inContainer bool, envs ...string) {
+func execCommandAndCheck(cmdString string, timeout int, inContainer bool, envs ...string) string {
 	output, err := execCommand(cmdString, timeout, inContainer, envs...)
 	if err != nil {
 		app.Stop()
 		panic(string(output))
 	}
+	return string(output)
 }
 
-func checkRoot() {
-	cmd := exec.Command("id", "-u")
-	output, err := cmd.Output()
-	check(err)
-	if string(output[:len(output)-1]) != "0" {
-		fmt.Println("Application must run as root or as sudoer.")
+func checkPrivilege() {
+	_, err := execCommand("sudo -n true", 5, false)
+	if err != nil {
+		fmt.Println("Application must run as sudoer.")
 		os.Exit(1)
 	}
 }
@@ -110,7 +108,7 @@ func initLog(prefix string) {
 	suffix := fmt.Sprintf("%d%02d%02dT%02d%02d%02d",
 		now.Year(), now.Month(), now.Day(),
 		now.Hour(), now.Minute(), now.Second())
-	logFilePath = filepath.Join(projectPath, prefix+suffix+".log")
+	logFileName = prefix + suffix + ".log"
 }
 
 func Hosts(cidr string) (ips []string, err error) {

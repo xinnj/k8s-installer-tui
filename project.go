@@ -16,12 +16,11 @@ var inventoryFile string
 var nodeIps []string
 var inventory = Inventory{}
 var originalInventory = Inventory{}
-var projectPath = "/root/idocluster"
+var projectPath = filepath.Join(homePath, "/idocluster")
 var nodeHostnamePrefix = "node"
 
 type Host struct {
 	Ansible_host string
-	Ansible_port string
 	Ip           string
 	Access_ip    string
 	Node_labels  map[string]string
@@ -30,6 +29,10 @@ type Host struct {
 
 type Inventory struct {
 	All struct {
+		Vars struct {
+			Ansible_port string
+			Ansible_user string
+		}
 		Hosts    map[string]Host
 		Children struct {
 			Kube_control_plane struct {
@@ -217,11 +220,11 @@ func populateInventory() {
 	err = yaml.Unmarshal(data, &inventory)
 	check(err)
 
-	for name, host := range inventory.All.Hosts {
-		if host.Ansible_port == "" {
-			host.Ansible_port = "22"
-			inventory.All.Hosts[name] = host
-		}
+	if inventory.All.Vars.Ansible_port == "" {
+		inventory.All.Vars.Ansible_port = "22"
+	}
+	if inventory.All.Vars.Ansible_user == "" {
+		inventory.All.Vars.Ansible_user = "root"
 	}
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
@@ -266,11 +269,11 @@ func loadInventory() error {
 			return err
 		}
 
-		for name, host := range originalInventory.All.Hosts {
-			if host.Ansible_port == "" {
-				host.Ansible_port = "22"
-				originalInventory.All.Hosts[name] = host
-			}
+		if originalInventory.All.Vars.Ansible_port == "" {
+			originalInventory.All.Vars.Ansible_port = "22"
+		}
+		if originalInventory.All.Vars.Ansible_user == "" {
+			originalInventory.All.Vars.Ansible_user = "root"
 		}
 	} else {
 		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
@@ -294,11 +297,11 @@ func loadInventory() error {
 		return err
 	}
 
-	for name, host := range inventory.All.Hosts {
-		if host.Ansible_port == "" {
-			host.Ansible_port = "22"
-			inventory.All.Hosts[name] = host
-		}
+	if inventory.All.Vars.Ansible_port == "" {
+		inventory.All.Vars.Ansible_port = "22"
+	}
+	if inventory.All.Vars.Ansible_user == "" {
+		inventory.All.Vars.Ansible_user = "root"
 	}
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")

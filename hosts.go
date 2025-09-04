@@ -13,12 +13,12 @@ import (
 
 var flexHostDetails = tview.NewFlex()
 var removeButton *tview.Button
-var formHostsLeft = tview.NewForm()
+var formHostsActions = tview.NewForm()
 var formHostsDown = tview.NewForm()
 
 func initFlexEditHosts(selectedHostname string) {
-	formHostsLeft.Clear(true)
-	formHostsLeft.
+	formHostsActions.Clear(true)
+	formHostsActions.
 		AddButton("Add", func() {
 			formAddHost.Clear(true)
 			initFormAddHost()
@@ -31,7 +31,7 @@ func initFlexEditHosts(selectedHostname string) {
 			initFlexEditHosts("")
 		})
 
-	removeButton = formHostsLeft.GetButton(formHostsLeft.GetButtonIndex("Remove"))
+	removeButton = formHostsActions.GetButton(formHostsActions.GetButtonIndex("Remove"))
 
 	listHosts := tview.NewList().ShowSecondaryText(false)
 	for index, host := range getHostsList() {
@@ -101,7 +101,7 @@ func initFlexEditHosts(selectedHostname string) {
 
 	flexLeft := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(listHosts, 0, 1, true).
-		AddItem(formHostsLeft, 3, 1, false)
+		AddItem(formHostsActions, 3, 1, false)
 	flexLeft.SetBorder(true)
 
 	flexUp := tview.NewFlex().
@@ -149,7 +149,7 @@ func initFlexEditHosts(selectedHostname string) {
 
 	listHosts.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlN {
-			app.SetFocus(formHostsLeft)
+			app.SetFocus(formHostsActions)
 		}
 		if event.Key() == tcell.KeyCtrlP {
 			app.SetFocus(formHostsDown)
@@ -157,7 +157,7 @@ func initFlexEditHosts(selectedHostname string) {
 		return event
 	})
 
-	formHostsLeft.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	formHostsActions.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlN {
 			app.SetFocus(flexHostDetails)
 		}
@@ -194,7 +194,6 @@ func initFormAddHost() {
 
 	formAddHost.AddInputField("IP: ", "", 0, nil, func(text string) {
 		newHostDetails.Ansible_host = text
-		newHostDetails.Ansible_port = "22"
 		newHostDetails.Ip = text
 		newHostDetails.Access_ip = text
 	})

@@ -37,6 +37,7 @@
   run_once: true
   kubernetes.core.helm:
     name: k8s-node-watcher
+    binary_path: "{{ bin_dir }}/helm"
     chart_ref: "{{ local_release_dir }}/k8s-node-watcher-1.0.1.tgz"
     release_namespace: k8s-node-watcher
     create_namespace: true
@@ -44,3 +45,4 @@
       replicaCount: "{{ 2 if groups['kube_node'] | length >= 2 else 1 }}"
       image:
         registry: "{{ docker_image_repo }}"
+  become: true

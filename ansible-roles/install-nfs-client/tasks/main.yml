@@ -6,11 +6,14 @@
 
 - name: update repositories cache and install NFS
   apt: name=nfs-common update_cache=yes cache_valid_time=3600
+  become: true
   when: "ansible_os_family == 'Debian'"
 
 - name: update repositories cache and install NFS
   yum: name=nfs-utils
+  become: true
   when: "ansible_os_family == 'RedHat'"
 
 - name: Ensure rpcbind is running
   service: name=rpcbind state=started enabled=yes
+  become: true

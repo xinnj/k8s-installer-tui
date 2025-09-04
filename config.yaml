@@ -1,17 +1,15 @@
 unsafe_show_logs: true
-python_repo: "https://pypi.tuna.tsinghua.edu.cn/simple"
 predefined_node_labels:
   zone: "zone1"
 predefined_node_taints:
   - "logging:NoSchedule"
   - "monitoring:NoSchedule"
 default_vars:
-  ansible_python_interpreter: /usr/bin/python3
   download_run_once: true
   download_localhost: true
   download_force_cache: true
   download_keep_remote_cache: true
-  download_cache_dir: /root/k8s-installer-offline/kubespray_cache
+  download_cache_dir: /data/k8s-installer-offline/kubespray_cache
   container_manager_on_localhost: 'docker'
   image_command_tool_on_localhost: 'docker'
   helm_enabled: true

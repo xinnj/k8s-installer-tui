@@ -12,7 +12,6 @@ import (
 type HostDetails struct {
 	Hostname     string
 	Ansible_host string
-	Ansible_port string
 	Ip           string
 	Access_ip    string
 	Groups       []string
@@ -34,9 +33,11 @@ func initFlexHostDetails(hostname string, readonly bool) {
 		hostDetails.Ansible_host = text
 		writeBackHostDetails()
 	})
-	formHostDetails.AddInputField("Ansible Port:", hostDetails.Ansible_port, 0, nil, func(text string) {
-		hostDetails.Ansible_port = text
-		writeBackHostDetails()
+	formHostDetails.AddInputField("Ansible Port:", inventory.All.Vars.Ansible_port, 0, nil, func(text string) {
+		inventory.All.Vars.Ansible_port = text
+	})
+	formHostDetails.AddInputField("Ansible User:", inventory.All.Vars.Ansible_user, 0, nil, func(text string) {
+		inventory.All.Vars.Ansible_user = text
 	})
 	formHostDetails.AddInputField("IP:", hostDetails.Ip, 0, nil, func(text string) {
 		hostDetails.Ip = text
@@ -102,7 +103,7 @@ func initFlexHostDetails(hostname string, readonly bool) {
 			app.SetFocus(formDown)
 		}
 		if event.Key() == tcell.KeyCtrlP {
-			app.SetFocus(formHostsLeft)
+			app.SetFocus(formHostsActions)
 		}
 		return event
 	})
@@ -343,7 +344,6 @@ func initFlexEditNodeTaints() {
 func getHostDetails(hostname string) {
 	hostDetails.Hostname = hostname
 	hostDetails.Ansible_host = inventory.All.Hosts[hostname].Ansible_host
-	hostDetails.Ansible_port = inventory.All.Hosts[hostname].Ansible_port
 	hostDetails.Ip = inventory.All.Hosts[hostname].Ip
 	hostDetails.Access_ip = inventory.All.Hosts[hostname].Access_ip
 	hostDetails.Node_labels = inventory.All.Hosts[hostname].Node_labels
@@ -368,7 +368,6 @@ func getHostDetails(hostname string) {
 func writeBackHostDetails() {
 	var h Host
 	h.Ansible_host = hostDetails.Ansible_host
-	h.Ansible_port = hostDetails.Ansible_port
 	h.Ip = hostDetails.Ip
 	h.Access_ip = hostDetails.Access_ip
 	h.Node_labels = hostDetails.Node_labels

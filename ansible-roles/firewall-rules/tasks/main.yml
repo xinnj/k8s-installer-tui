@@ -55,6 +55,7 @@
   ansible.builtin.shell:
     cmd: "firewall-cmd --permanent --zone=public --add-port={{ kube_apiserver_node_port_range }}/{tcp,udp}
       --add-port={{ loadbalancer_apiserver_port }}/tcp"
+  become: true
   when:
     - ansible_os_family == 'RedHat'
     - firewalld_running
@@ -62,6 +63,7 @@
 - name: Set rules for 'RedHat' family - internal subset
   ansible.builtin.shell:
     cmd: "firewall-cmd --permanent --zone=trusted --add-source={{ item }}"
+  become: true
   when:
     - ansible_os_family == 'RedHat'
     - firewalld_running
@@ -73,6 +75,7 @@
   ansible.builtin.shell:
     cmd: "firewall-cmd --permanent --zone=trusted
       --add-source={{ hostvars[item]['ip'] if hostvars[item]['ip'] is defined else hostvars[item]['ansible_host'] }}"
+  become: true
   when:
     - ansible_os_family == 'RedHat'
     - firewalld_running
@@ -81,6 +84,7 @@
 - name: Set rules for 'RedHat' family - reload
   ansible.builtin.shell:
     cmd: "firewall-cmd --reload"
+  become: true
   when:
     - ansible_os_family == 'RedHat'
     - firewalld_running
@@ -91,6 +95,7 @@
       && ufw allow {{ kube_apiserver_node_port_range | replace('-',':') }}/tcp
       && ufw allow {{ kube_apiserver_node_port_range | replace('-',':') }}/udp
       && ufw allow {{ loadbalancer_apiserver_port }}/tcp"
+  become: true
   when:
     - ansible_os_family == 'Debian'
     - ufw_running
@@ -98,6 +103,7 @@
 - name: Set rules for 'Debian' family - internal subset
   ansible.builtin.shell:
     cmd: "ufw allow from {{ item }}"
+  become: true
   when:
     - ansible_os_family == 'Debian'
     - ufw_running
@@ -108,6 +114,7 @@
 - name: Set rules for 'Debian' family - hosts
   ansible.builtin.shell:
     cmd: "ufw allow from {{ hostvars[item]['ip'] if hostvars[item]['ip'] is defined else hostvars[item]['ansible_host'] }}"
+  become: true
   when:
     - ansible_os_family == 'Debian'
     - ufw_running

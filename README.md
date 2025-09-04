@@ -16,12 +16,12 @@ To setup a k8s cluster with terminal UI. Thanks to these two amazing projects:
 - Support offline install
   - Execute the commands below to prepare the materials for offline install.
     ```shell
-    mkdir -p /root/k8s-installer-offline
-    cd /root/k8s-installer-offline
-    curl -o podman-launcher-amd64 https://github.com/xinnj/podman-launcher/releases/download/1.0.0/podman-launcher-amd64
-    chmod +x podman-launcher-amd64
-    ./podman-launcher-amd64 pull docker.io/xinnj/kubespray-runtime:latest
-    ./podman-launcher-amd64 save docker.io/xinnj/kubespray-runtime:latest | gzip > docker.io_xinnj_kubespray-runtime.tgz
+    mkdir -p ~/k8s-installer-offline
+    cd ~/k8s-installer-offline
+    curl -o podman https://github.com/xinnj/podman-launcher/releases/download/1.0.0/podman-launcher-amd64
+    chmod +x podman
+    ./podman pull docker.io/xinnj/kubespray-runtime:latest
+    ./podman save docker.io/xinnj/kubespray-runtime:latest | gzip > docker.io_xinnj_kubespray-runtime.tgz
     ```
 
 # Installation

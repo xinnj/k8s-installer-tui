@@ -12,10 +12,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const pythonRequirements = "requirements.txt"
+const podmanDownloadUrl = "https://github.com/xinnj/podman-launcher/releases/download/1.0.0/podman-launcher-amd64"
+const kubesprayRuntimeTag = "docker.io/xinnj/kubespray-runtime:2.28.0"
+const kubesprayRuntimeFile = "docker.io_xinnj_kubespray-runtime-2.28.0.tar"
+const inContainer = true
+
+var homePath, _ = os.UserHomeDir()
+var offlinePath = filepath.Join(homePath, "/k8s-installer-offline")
+var containerTool = "podman"
+var appPath string
+var kubesprayPath string
 
 type AppConfig struct {
-	Python_repo            string
 	Predefined_node_labels map[string]string
 	Predefined_node_taints []string
 	Default_vars           map[string]any
@@ -23,8 +31,6 @@ type AppConfig struct {
 	Default_mirrors        []map[string]string
 }
 
-var appPath string
-var kubesprayPath string
 var appConfig AppConfig
 var app = tview.NewApplication()
 var pages = tview.NewPages()
@@ -42,16 +48,12 @@ var flexHaMode = tview.NewFlex()
 var flexNetwork = tview.NewFlex()
 var flexMirror = tview.NewFlex()
 var flexDeployCluster = tview.NewFlex()
-var logFilePath string
+var logFileName string
 var flexSetupCluster = tview.NewFlex()
 var defaultSshKeyfile = filepath.Join(projectPath, "ansible-key")
 var extraVars map[string]any
 var flexSetupMode = tview.NewFlex()
 var setupNewCluster bool
-var offlinePath = "/root/k8s-installer-offline"
-var inContainer bool
-var kubesprayRuntimeTag = "docker.io/xinnj/kubespray-runtime:2.28.0"
-var kubesprayRuntimeFile = "docker.io_xinnj_kubespray-runtime-2.28.0.tar"
 
 func prepareKubespray() {
 	kubesprayPath = filepath.Join(appPath, "kubespray")
@@ -72,7 +74,7 @@ func prepareKubespray() {
 }
 
 func installDependencies() {
-	_, err1 := os.Stat("/root/.idocluster-dependencies-installed")
+	_, err1 := os.Stat(filepath.Join(homePath, ".idocluster-dependencies-installed"))
 	_, err2 := os.Stat(filepath.Join(appPath, ".idocluster-dependencies-installed"))
 	if err1 == nil && err2 == nil {
 		return
@@ -84,40 +86,42 @@ func installDependencies() {
 		panic(err2)
 	}
 
-	var pythonRepoParam string
-	if appConfig.Python_repo != "" {
-		pythonRepoParam = " -i " + appConfig.Python_repo
-	}
-
-	var cmds []string
-	if inContainer {
-		cmds = []string{
-			fmt.Sprintf("%s rmi -if %s", filepath.Join(offlinePath, "podman-launcher-amd64"), kubesprayRuntimeTag),
-			fmt.Sprintf("%s load -i %s", filepath.Join(offlinePath, "podman-launcher-amd64"), filepath.Join(offlinePath, kubesprayRuntimeFile)),
-		}
-	} else {
-		cmds = []string{
-			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
-				"if ! command -v docker &>/dev/null; then sudo $pkg_mgr install -y podman podman-docker; sudo touch /etc/containers/nodocker; fi",
-			"if command -v yum &>/dev/null; then pkg_mgr=yum; else pkg_mgr=apt; fi;" +
-				"sudo $pkg_mgr install -y python3.12 sshpass rsync",
-			"PYTHON3_PATH=$(which python3); if [ -z \"$PYTHON3_PATH\" ]; then sudo ln -s $(which python3.12) \"$PYTHON3_PATH\";" +
-				"else sudo mv \"$PYTHON3_PATH\" \"${PYTHON3_PATH}.bak\"; sudo ln -s $(which python3.12) \"$PYTHON3_PATH\"; fi",
-			"if command -v yum &>/dev/null; then python3 -m ensurepip --default-pip; else python3 -m pip install --upgrade pip; fi;",
-			"pip3 install -r " + filepath.Join(kubesprayPath, pythonRequirements) + pythonRepoParam,
-			"pip3 install -r " + filepath.Join(appPath, "inventory_builder/requirements.txt") + pythonRepoParam,
-		}
-	}
-
 	fmt.Println("Install dependencies. Please wait a while...")
 
-	cmdsLen := len(cmds)
-	for index, cmd := range cmds {
-		fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(cmdsLen))
-		execCommandAndCheck(cmd, 0, false)
+	_, err1 = execCommand("sudo podman --version", 0, false)
+	_, err2 = os.Stat(filepath.Join(offlinePath, "podman"))
+	if err1 != nil && err2 != nil {
+		fmt.Println("Downloading podman")
+		cmds := []string{
+			fmt.Sprintf("mkdir -p %s; curl -o %s/podman -L %s", offlinePath, offlinePath, podmanDownloadUrl),
+			fmt.Sprintf("chmod +x %s/podman", offlinePath),
+		}
+		cmdsLen := len(cmds)
+		for index, cmd := range cmds {
+			fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(cmdsLen))
+			execCommandAndCheck(cmd, 0, false)
+		}
 	}
 
-	file, err := os.Create("/root/.idocluster-dependencies-installed")
+	output, err := execCommand(fmt.Sprintf("sudo %s images -nq %s", containerTool, kubesprayRuntimeTag), 0, false)
+	if err != nil || len(output) == 0 {
+		fmt.Println("Pulling kubespray runtime image")
+		var cmds []string
+		_, err = os.Stat(filepath.Join(offlinePath, kubesprayRuntimeFile))
+		if err != nil {
+			cmds = append(cmds, fmt.Sprintf("sudo %s pull %s", containerTool, kubesprayRuntimeTag))
+		} else {
+			cmds = append(cmds, fmt.Sprintf("sudo %s load -i %s", containerTool, filepath.Join(offlinePath, kubesprayRuntimeFile)))
+		}
+
+		cmdsLen := len(cmds)
+		for index, cmd := range cmds {
+			fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(cmdsLen))
+			execCommandAndCheck(cmd, 0, false)
+		}
+	}
+
+	file, err := os.Create(filepath.Join(homePath, ".idocluster-dependencies-installed"))
 	check(err)
 	err = file.Close()
 	check(err)
@@ -146,29 +150,29 @@ func readConfig() {
 }
 
 func main() {
-	checkRoot()
-
-	execCommandAndCheck("mkdir -p /root/.ssh", 0, false)
+	checkPrivilege()
 
 	ex, err := os.Executable()
 	check(err)
 	appPath = filepath.Dir(ex)
 
-	_, err1 := os.Stat(filepath.Join(offlinePath, "podman-launcher-amd64"))
-	_, err2 := os.Stat(filepath.Join(offlinePath, kubesprayRuntimeFile))
-	if err1 == nil && err2 == nil {
-		inContainer = true
-		fmt.Println("Install offline.")
-	} else {
-		inContainer = false
-		fmt.Println("Install online.")
-	}
-
 	readConfig()
 
 	prepareKubespray()
 
+	output, err := execCommand("sudo podman --version", 0, false)
+	if err != nil || len(output) == 0 {
+		// podman not found in system, use the one in offline path
+		containerTool = filepath.Join(offlinePath, "podman")
+	}
+
 	installDependencies()
+
+	output, err = execCommand("sudo "+containerTool+" --version", 0, false)
+	if err != nil || len(output) == 0 {
+		fmt.Println("Can't execute " + containerTool + ". Please check the installation.")
+		os.Exit(1)
+	}
 
 	initFlexSetupMode()
 

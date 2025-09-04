@@ -37,7 +37,7 @@ func initFlexSetupCluster(clean bool) {
 
 	textLog := tview.NewInputField()
 	textLog.SetLabel("Log File: ")
-	textLog.SetText(logFilePath)
+	textLog.SetText(filepath.Join(projectPath, logFileName))
 	textLog.SetDisabled(true)
 
 	logContent = tview.NewTextView()
@@ -67,7 +67,7 @@ func initFlexSetupCluster(clean bool) {
 					}
 					if buttonLabel == "Abort" {
 						if inContainer {
-							execCommandAndCheck(offlinePath+"/podman-launcher-amd64 rm -a -f", 0, false)
+							execCommandAndCheck("sudo "+containerTool+" rm -a -f", 0, false)
 						}
 						pgid, err := syscall.Getpgid(process.Pid)
 						if err == nil {
@@ -124,6 +124,9 @@ func initFlexSetupCluster(clean bool) {
 }
 
 func execCmd(view *tview.TextView) {
+	ansibleCommonParameters := "--become --ssh-extra-args='-o StrictHostKeyChecking=no' -i /data/idocluster/hosts.yaml " +
+		"--private-key=/data/idocluster/ansible-key -e @'/data/idocluster/extra-vars.yaml'"
+
 	startTime = time.Now()
 
 	cmdString := fmt.Sprintf(`
@@ -140,32 +143,26 @@ chmod -R 700 %s
 		cmdString = fmt.Sprintf(`
 set -euao pipefail
 
-export inventory=%s
-export key=%s
-export vars=%s
-export log=%s
+export parameters="%s"
+export log="/data/idocluster/%s"
 
 echo "====================Setup / Update a cluster====================" | tee -a "$log"
 
 echo "====================playbooks/extra_setup_before.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  "playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
+eval "ansible-playbook $parameters playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/cluster.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" -e upgrade_cluster_setup=true \
-  "playbooks/cluster.yml" 2>&1 | tee -a "$log"
+eval "ansible-playbook $parameters -e upgrade_cluster_setup=true playbooks/cluster.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/extra_setup_after.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  "playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
+eval "ansible-playbook $parameters playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
 
 echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
-ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
-  -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
-`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
+eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kubectl get node'" 2>&1 | tee -a "$log"
+`, ansibleCommonParameters, logFileName)
 	} else {
 		// Add node to existing cluster
 		var addedControlAndEtcdNodes, addedWorkNodes []string
@@ -195,93 +192,77 @@ ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
 		cmdAddControlNode := ""
 		if len(addedControlAndEtcdNodes) > 0 {
 			cmdAddControlNode = fmt.Sprintf(`
-export inventory=%s
-export key=%s
-export vars=%s
-export log=%s
+export parameters="%s"
+export log="/data/idocluster/%s"
 
 echo "====================playbooks/cluster.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+eval "ansible-playbook $parameters \
   --skip-tags=multus \
   --limit=etcd,kube_control_plane -e ignore_assert_errors=yes -e etcd_retries=10 \
-  "playbooks/cluster.yml" 2>&1 | tee -a "$log"
+  playbooks/cluster.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/upgrade_cluster.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
+eval "ansible-playbook $parameters \
   --skip-tags=multus \
   --limit=etcd,kube_control_plane -e ignore_assert_errors=yes -e etcd_retries=10 \
-  "playbooks/upgrade_cluster.yml" 2>&1 | tee -a "$log"
-`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath)
+  playbooks/upgrade_cluster.yml" 2>&1 | tee -a "$log"
+`, ansibleCommonParameters, logFileName)
 		}
 
 		cmdAddWorkNode := ""
 		if len(addedWorkNodes) > 0 {
 			cmdAddWorkNode = fmt.Sprintf(`
-export inventory=%s
-export key=%s
-export vars=%s
-export log=%s
+export parameters="%s"
+export log="/data/idocluster/%s"
 
 echo "====================playbooks/facts.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  "playbooks/facts.yml" 2>&1 | tee -a "$log"
+eval "ansible-playbook $parameters playbooks/facts.yml" 2>&1 | tee -a "$log"
 
 echo "====================playbooks/scale.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  --limit="%s" \
-  "playbooks/scale.yml" 2>&1 | tee -a "$log"
-`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
-				strings.Join(addedWorkNodes, ","))
+eval "ansible-playbook $parameters --limit=%s playbooks/scale.yml" 2>&1 | tee -a "$log"
+`, ansibleCommonParameters, logFileName, strings.Join(addedWorkNodes, ","))
 		}
 
 		cmdString = fmt.Sprintf(`
 set -euao pipefail
 
-export inventory=%s
-export key=%s
-export vars=%s
-export log=%s
+export parameters="%s"
+export log="/data/idocluster/%s"
 
 echo "====================Add node to cluster====================" | tee -a "$log"
 
 echo "====================playbooks/extra_setup_before.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  "playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
+eval "ansible-playbook $parameters playbooks/extra_setup_before.yml" 2>&1 | tee -a "$log"
 
 %s
 %s
 
 echo "====================playbooks/extra_setup_after.yml====================" | tee -a "$log"
-ansible-playbook -i "$inventory" -u root --private-key="$key" -e @"$vars" \
-  "playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
+eval "ansible-playbook $parameters playbooks/extra_setup_after.yml" 2>&1 | tee -a "$log"
 
 echo "====================Restart all nginx-proxy====================" | tee -a "$log"
-ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
-  -m shell -a "kubectl get pod -n kube-system | grep nginx-proxy | awk '{print \$1}' | xargs -r kubectl delete pod -n kube-system"
+eval "ansible $parameters kube_control_plane[0] \
+  -m shell -a /usr/local/bin/kubectl get pod -n kube-system | grep nginx-proxy | awk '{print \$1}' | xargs -r /usr/local/bin/kubectl delete pod -n kube-system"
 
 echo "====================Restart all nginx ingress controller====================" | tee -a "$log"
-ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
-  -m shell -a "kubectl delete pod --all -n ingress-nginx"
+eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kubectl delete pod --all -n ingress-nginx'"
 
 echo | tee -a "$log"
 echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
-ansible -i "$inventory" -u root --private-key="$key" kube_control_plane[0] \
-  -m shell -a "kubectl get node" 2>&1 | tee -a "$log"
-`, inventoryFile, defaultSshKeyfile, filepath.Join(projectPath, "extra-vars.yaml"), logFilePath,
-			cmdAddControlNode,
-			cmdAddWorkNode)
+eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kubectl get node'" 2>&1 | tee -a "$log"
+`, ansibleCommonParameters, logFileName, cmdAddControlNode, cmdAddWorkNode)
 	}
 
 	createCommandFile(cmdString)
 
 	cmdArg := ""
 	if inContainer {
-		cmdArg = fmt.Sprintf("%s/podman-launcher-amd64 run --privileged --network=host --rm "+
-			"-v '%s':'%s' -v '%s':'%s' -v '%s':'%s' -v '/root/.ssh:/root/.ssh' %s /bin/bash -c 'cd %s; /bin/bash \"%s/._commands\"'",
-			offlinePath, appPath, appPath, projectPath, projectPath, offlinePath, offlinePath,
-			kubesprayRuntimeTag, kubesprayPath, projectPath)
+		cmdArg = fmt.Sprintf("sudo %s run --privileged --network=host --replace --name kubespray --rm "+
+			"-v '%s':'/data/k8s-installer-tui' -v '%s':'/data/idocluster' -v '%s':'/data/k8s-installer-offline' %s "+
+			"/bin/bash -c 'cd /data/k8s-installer-tui/kubespray; /bin/bash \"/data/idocluster/._commands\"'",
+			containerTool, appPath, projectPath, offlinePath, kubesprayRuntimeTag)
 	} else {
 		cmdArg = fmt.Sprintf("\"%s/._commands\"", projectPath)
 	}
