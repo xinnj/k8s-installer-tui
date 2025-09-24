@@ -30,6 +30,8 @@ default_vars:
     release: prometheus
   kube_proxy_metrics_bind_address: "0.0.0.0:10249"
   containerd_use_config_path: true
+  kube_kubeadm_apiserver_extra_args:
+    tls-min-version: VersionTLS13
 configurable_vars:
   - description: "Enable NTP: "
     var:
