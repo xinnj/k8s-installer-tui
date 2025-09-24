@@ -10,9 +10,9 @@
     k8s_node_watcher_chart:
       file: true
       version: "1.0.1"
-      dest: "{{ local_release_dir }}/k8s-node-watcher-1.0.1.tgz"
+      dest: "{{ local_release_dir }}/k8s-node-watcher-1.1.0.tgz"
       checksum: ""
-      url: "https://github.com/xinnj/k8s-node-watcher/releases/download/1.0.1/k8s-node-watcher-1.0.1.tgz"
+      url: "https://github.com/xinnj/k8s-node-watcher/releases/download/1.0.1/k8s-node-watcher-1.1.0.tgz"
       unarchive: false
       owner: "root"
       mode: "0755"
@@ -38,7 +38,7 @@
   kubernetes.core.helm:
     name: k8s-node-watcher
     binary_path: "{{ bin_dir }}/helm"
-    chart_ref: "{{ local_release_dir }}/k8s-node-watcher-1.0.1.tgz"
+    chart_ref: "{{ local_release_dir }}/k8s-node-watcher-1.1.0.tgz"
     release_namespace: k8s-node-watcher
     create_namespace: true
     values:
