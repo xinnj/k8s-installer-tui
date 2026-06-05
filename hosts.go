@@ -12,6 +12,7 @@ import (
 )
 
 var flexHostDetails = tview.NewFlex()
+var formGlobalSettings = tview.NewForm()
 var removeButton *tview.Button
 var formHostsActions = tview.NewForm()
 var formHostsDown = tview.NewForm()
@@ -104,9 +105,23 @@ func initFlexEditHosts(selectedHostname string) {
 		AddItem(formHostsActions, 3, 1, false)
 	flexLeft.SetBorder(true)
 
+	formGlobalSettings.Clear(true)
+	formGlobalSettings.SetBorder(true)
+	formGlobalSettings.
+		AddInputField("SSH User: ", inventory.All.Vars.Ansible_user, 0, nil, func(text string) {
+			inventory.All.Vars.Ansible_user = text
+		}).
+		AddInputField("SSH Port: ", inventory.All.Vars.Ansible_port, 0, nil, func(text string) {
+			inventory.All.Vars.Ansible_port = text
+		})
+
+	flexRight := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(flexHostDetails, 0, 3, true).
+		AddItem(formGlobalSettings, 7, 1, false)
+
 	flexUp := tview.NewFlex().
 		AddItem(flexLeft, 0, 1, true).
-		AddItem(flexHostDetails, 0, 2, false)
+		AddItem(flexRight, 0, 2, false)
 	flexUp.SetTitle("Edit Hosts").SetBorder(true)
 
 	formHostsDown.Clear(true)
@@ -172,7 +187,17 @@ func initFlexEditHosts(selectedHostname string) {
 			app.SetFocus(listHosts)
 		}
 		if event.Key() == tcell.KeyCtrlP {
-			app.SetFocus(flexHostDetails)
+			app.SetFocus(formGlobalSettings)
+		}
+		return event
+	})
+
+	formGlobalSettings.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN {
+			app.SetFocus(formHostsDown)
+		}
+		if event.Key() == tcell.KeyCtrlP {
+			app.SetFocus(formHostDetailsActions)
 		}
 		return event
 	})

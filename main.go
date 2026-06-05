@@ -156,6 +156,8 @@ func main() {
 	check(err)
 	appPath = filepath.Dir(ex)
 
+	check(os.MkdirAll(offlinePath, 0755))
+
 	readConfig()
 
 	prepareKubespray()

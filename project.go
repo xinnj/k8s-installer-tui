@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,6 +20,8 @@ var inventory = Inventory{}
 var originalInventory = Inventory{}
 var projectPath = filepath.Join(homePath, "/idocluster")
 var nodeHostnamePrefix = "node"
+var nodeSshUser = ""
+var nodeSshPort = "22"
 
 type Host struct {
 	Ansible_host string
@@ -134,6 +137,15 @@ func initFormNewProject() {
 		}
 	})
 
+	currentUser, _ := user.Current()
+	formNewProject.AddInputField("SSH username: ", currentUser.Username, 20, nil, func(text string) {
+		nodeSshUser = text
+	})
+
+	formNewProject.AddInputField("SSH port: ", "22", 20, nil, func(text string) {
+		nodeSshPort = text
+	})
+
 	formNewProject.AddInputField("Hostname prefix: ", "node", 20, nil, func(text string) {
 		nodeHostnamePrefix = text
 	})
@@ -222,10 +234,19 @@ func populateInventory() {
 	check(err)
 
 	if inventory.All.Vars.Ansible_port == "" {
-		inventory.All.Vars.Ansible_port = "22"
+		if nodeSshPort != "" {
+			inventory.All.Vars.Ansible_port = nodeSshPort
+		} else {
+			inventory.All.Vars.Ansible_port = "22"
+		}
 	}
 	if inventory.All.Vars.Ansible_user == "" {
-		inventory.All.Vars.Ansible_user = "root"
+		if nodeSshUser != "" {
+			inventory.All.Vars.Ansible_user = nodeSshUser
+		} else {
+			currentUser, _ := user.Current()
+			inventory.All.Vars.Ansible_user = currentUser.Username
+		}
 	}
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
@@ -274,7 +295,8 @@ func loadInventory() error {
 			originalInventory.All.Vars.Ansible_port = "22"
 		}
 		if originalInventory.All.Vars.Ansible_user == "" {
-			originalInventory.All.Vars.Ansible_user = "root"
+			currentUser, _ := user.Current()
+			originalInventory.All.Vars.Ansible_user = currentUser.Username
 		}
 	} else {
 		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
@@ -302,7 +324,8 @@ func loadInventory() error {
 		inventory.All.Vars.Ansible_port = "22"
 	}
 	if inventory.All.Vars.Ansible_user == "" {
-		inventory.All.Vars.Ansible_user = "root"
+		currentUser, _ := user.Current()
+		inventory.All.Vars.Ansible_user = currentUser.Username
 	}
 
 	extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")

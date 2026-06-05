@@ -22,6 +22,7 @@ type HostDetails struct {
 var hostDetails HostDetails
 var tmpNodeLabels string
 var tmpNodeTaints string
+var formHostDetailsActions = tview.NewForm()
 
 func initFlexHostDetails(hostname string, readonly bool) {
 	getHostDetails(hostname)
@@ -32,12 +33,6 @@ func initFlexHostDetails(hostname string, readonly bool) {
 	formHostDetails.AddInputField("Ansible Host:", hostDetails.Ansible_host, 0, nil, func(text string) {
 		hostDetails.Ansible_host = text
 		writeBackHostDetails()
-	})
-	formHostDetails.AddInputField("Ansible Port:", inventory.All.Vars.Ansible_port, 0, nil, func(text string) {
-		inventory.All.Vars.Ansible_port = text
-	})
-	formHostDetails.AddInputField("Ansible User:", inventory.All.Vars.Ansible_user, 0, nil, func(text string) {
-		inventory.All.Vars.Ansible_user = text
 	})
 	formHostDetails.AddInputField("IP:", hostDetails.Ip, 0, nil, func(text string) {
 		hostDetails.Ip = text
@@ -66,14 +61,13 @@ func initFlexHostDetails(hostname string, readonly bool) {
 	}
 	formHostDetails.AddTextView("Node Taints: ", taintsString, 0, 0, false, true)
 
-	formDown := tview.NewForm()
-
+	formHostDetailsActions.Clear(true)
 	if readonly {
 		for i := 0; i < formHostDetails.GetFormItemCount(); i++ {
 			formHostDetails.GetFormItem(i).SetDisabled(true)
 		}
 	} else {
-		formDown.
+		formHostDetailsActions.
 			AddButton("Edit Groups", func() {
 				initFormEditGroups()
 				pages.SwitchToPage("Edit Groups")
@@ -93,14 +87,14 @@ func initFlexHostDetails(hostname string, readonly bool) {
 	flexHostDetails.
 		SetDirection(tview.FlexRow).
 		AddItem(formHostDetails, 0, 1, true).
-		AddItem(formDown, 3, 1, false)
+		AddItem(formHostDetailsActions, 3, 1, false)
 	flexHostDetails.SetBorder(true)
 
 	//app.SetFocus(formHostDetails)
 
 	formHostDetails.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlN {
-			app.SetFocus(formDown)
+			app.SetFocus(formHostDetailsActions)
 		}
 		if event.Key() == tcell.KeyCtrlP {
 			app.SetFocus(formHostsActions)
@@ -108,9 +102,9 @@ func initFlexHostDetails(hostname string, readonly bool) {
 		return event
 	})
 
-	formDown.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlN || event.Key() == tcell.KeyCtrlP {
-			app.SetFocus(formHostsDown)
+	formHostDetailsActions.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlN {
+			app.SetFocus(formGlobalSettings)
 		}
 		if event.Key() == tcell.KeyCtrlP {
 			app.SetFocus(formHostDetails)
