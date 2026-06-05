@@ -24,6 +24,7 @@ var accessMethodsType = AccessMethodType{
 }
 var accessMethod = ""
 var sshKeyFile = ""
+var containerSshKeyFile = "/data/idocluster/ansible-key"
 
 func copyFile(src, dst string, mode os.FileMode) error {
 	srcFile, err := os.Open(src)
@@ -128,7 +129,8 @@ func copySshKeyToNode(sshPassword string) (errorNodes []string) {
 
 	_, err := os.Stat(defaultSshKeyfile)
 	if err != nil {
-		execCommandAndCheck("rm -f \""+defaultSshKeyfile+"\"; ssh-keygen -q -N '' -f \""+defaultSshKeyfile+"\"", 0, inContainer)
+		// Generate SSH key and change ownership to current user
+		execCommandAndCheck(fmt.Sprintf("rm -f \"%s\"; ssh-keygen -q -N '' -f \"%s\"; chown %d:%d \"%s\" \"%s.pub\"", containerSshKeyFile, containerSshKeyFile, os.Getuid(), os.Getgid(), containerSshKeyFile, containerSshKeyFile), 0, inContainer)
 	}
 
 	var hosts []Host
@@ -144,7 +146,7 @@ func copySshKeyToNode(sshPassword string) (errorNodes []string) {
 			go func(host Host, resultCh chan copyResult) {
 				hostname := inventory.All.Vars.Ansible_user + "@" + host.Ansible_host + ":" + inventory.All.Vars.Ansible_port
 				cmdString := fmt.Sprintf("echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p %s %s@%s",
-					sshPassword, defaultSshKeyfile, inventory.All.Vars.Ansible_port, inventory.All.Vars.Ansible_user, host.Ansible_host)
+					sshPassword, containerSshKeyFile, inventory.All.Vars.Ansible_port, inventory.All.Vars.Ansible_user, host.Ansible_host)
 				_, err := execCommand(cmdString, 0, inContainer)
 				if err != nil {
 					resultCh <- copyResult{host: hostname, successful: false}

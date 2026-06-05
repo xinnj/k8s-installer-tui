@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -212,8 +213,8 @@ func populateInventory() {
 
 	inventoryFile = filepath.Join(projectPath, "hosts.yaml")
 	ips := strings.Join(nodeIps, " ")
-	cmd := "python3 " + filepath.Join(appPath, inventoryBuilder) + " " + ips
-	execCommandAndCheck(cmd, 0, inContainer, "CONFIG_FILE="+inventoryFile, "HOST_PREFIX="+nodeHostnamePrefix)
+	cmd := "python3 " + filepath.Join("/data/k8s-installer-tui", inventoryBuilder) + " " + ips + fmt.Sprintf("; chown %d:%d /data/idocluster/hosts.yaml", os.Getuid(), os.Getgid())
+	execCommandAndCheck(cmd, 0, inContainer, "CONFIG_FILE=/data/idocluster/hosts.yaml", "HOST_PREFIX="+nodeHostnamePrefix)
 
 	data, err := os.ReadFile(inventoryFile)
 	check(err)
