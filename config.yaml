@@ -46,7 +46,7 @@ configurable_vars:
         - prefix: _default
           server: ""
           mirrors:
-            - host: http://nexus-docker-5000:5000
+            - host: http://artifact-keeper-backend:8080
               capabilities: [ "pull", "resolve" ]
               skip_verify: true
   - description: "Install k8s-node-watcher: "
@@ -58,6 +58,9 @@ configurable_vars:
   - description: "Install NFS client: "
     var:
       install_nfs_client: false
+  - description: "Install gvisor: "
+    var:
+      gvisor_enabled: false
 default_mirrors:
   - gcr_image_repo: "gcr.m.daocloud.io"
   - kube_image_repo: "k8s.m.daocloud.io"
