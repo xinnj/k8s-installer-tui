@@ -13,8 +13,8 @@ import (
 )
 
 const podmanDownloadUrl = "https://github.com/xinnj/podman-launcher/releases/download/1.0.0/podman-launcher-amd64"
-const kubesprayRuntimeTag = "docker.io/xinnj/kubespray-runtime:2.28.0"
-const kubesprayRuntimeFile = "docker.io_xinnj_kubespray-runtime-2.28.0.tar"
+const kubesprayRuntimeTag = "docker.io/xinnj/kubespray-runtime:2.29.1"
+const kubesprayRuntimeFile = "docker.io_xinnj_kubespray-runtime-2.29.1.tar"
 const inContainer = true
 
 var homePath, _ = os.UserHomeDir()
