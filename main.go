@@ -19,7 +19,7 @@ const inContainer = true
 
 var homePath, _ = os.UserHomeDir()
 var offlinePath = filepath.Join(homePath, "/k8s-installer-offline")
-var containerTool = "podman"
+var containerTool = filepath.Join(offlinePath, "podman")
 var appPath string
 var kubesprayPath string
 
@@ -103,22 +103,20 @@ func installDependencies() {
 		}
 	}
 
-	output, err := execCommand(fmt.Sprintf("sudo %s images -nq %s", containerTool, kubesprayRuntimeTag), 0, false)
-	if err != nil || len(output) == 0 {
-		fmt.Println("Pulling kubespray runtime image")
-		var cmds []string
-		_, err = os.Stat(filepath.Join(offlinePath, kubesprayRuntimeFile))
-		if err != nil {
-			cmds = append(cmds, fmt.Sprintf("sudo %s pull %s", containerTool, kubesprayRuntimeTag))
-		} else {
-			cmds = append(cmds, fmt.Sprintf("sudo %s load -i %s", containerTool, filepath.Join(offlinePath, kubesprayRuntimeFile)))
-		}
+	var cmds []string
+	_, err := os.Stat(filepath.Join(offlinePath, kubesprayRuntimeFile))
+	if err != nil {
+		fmt.Println("Pulling kubespray runtime image from registry")
+		cmds = append(cmds, fmt.Sprintf("sudo %s pull %s", containerTool, kubesprayRuntimeTag))
+	} else {
+		fmt.Println("Loading kubespray runtime image from offline file")
+		cmds = append(cmds, fmt.Sprintf("sudo %s load -i %s", containerTool, filepath.Join(offlinePath, kubesprayRuntimeFile)))
+	}
 
-		cmdsLen := len(cmds)
-		for index, cmd := range cmds {
-			fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(cmdsLen))
-			execCommandAndCheck(cmd, 0, false)
-		}
+	cmdsLen := len(cmds)
+	for index, cmd := range cmds {
+		fmt.Println(strconv.Itoa(index+1) + " of " + strconv.Itoa(cmdsLen))
+		execCommandAndCheck(cmd, 0, false)
 	}
 
 	file, err := os.Create(filepath.Join(homePath, ".idocluster-dependencies-installed"))
@@ -162,15 +160,9 @@ func main() {
 
 	prepareKubespray()
 
-	output, err := execCommand("sudo podman --version", 0, false)
-	if err != nil || len(output) == 0 {
-		// podman not found in system, use the one in offline path
-		containerTool = filepath.Join(offlinePath, "podman")
-	}
-
 	installDependencies()
 
-	output, err = execCommand("sudo "+containerTool+" --version", 0, false)
+	output, err := execCommand("sudo "+containerTool+" --version", 0, false)
 	if err != nil || len(output) == 0 {
 		fmt.Println("Can't execute " + containerTool + ". Please check the installation.")
 		os.Exit(1)
