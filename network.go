@@ -14,6 +14,7 @@ import (
 
 var initialNetworkLoaded = false
 var networkPlugin string
+var checkConflicts = true
 
 func initFlexNetwork() {
 	formNetwork := tview.NewForm()
@@ -75,7 +76,6 @@ func initFlexNetwork() {
 		podCidr = text
 	})
 
-	checkConflicts := true
 	formNetwork.AddCheckbox("Check IP Conflicts: ", checkConflicts, func(checked bool) {
 		checkConflicts = checked
 	})

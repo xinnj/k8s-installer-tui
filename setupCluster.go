@@ -260,6 +260,7 @@ eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kube
 	cmdArg := ""
 	if inContainer {
 		cmdArg = fmt.Sprintf("sudo %s run --privileged --network=host --replace --name kubespray --rm "+
+			"-e PODMAN_IGNORE_CGROUPSV1_WARNING=true "+
 			"-v '%s':'/data/k8s-installer-tui' -v '%s':'/data/idocluster' -v '%s':'/data/k8s-installer-offline' %s "+
 			"/bin/bash -c 'cd /data/k8s-installer-tui/kubespray; /bin/bash \"/data/idocluster/._commands\"'",
 			containerTool, appPath, projectPath, offlinePath, kubesprayRuntimeTag)
