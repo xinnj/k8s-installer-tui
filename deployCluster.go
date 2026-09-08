@@ -110,12 +110,22 @@ func checkSshKey() (errorNodes []string, err error) {
 	return errorNodes, nil
 }
 
-func copySshKeyToNode(sshPassword string) (errorNodes []string) {
+func errorText(err error, output []byte) string {
+	msg := err.Error()
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) > 0 && lines[len(lines)-1] != "" {
+		msg += "\n" + lines[len(lines)-1]
+	}
+	return msg
+}
+
+func copySshKeyToNode(sshPassword string) (errorNodes []string, errorMsgs []string) {
 	const maxConcurrency = 10
 
 	type copyResult struct {
 		host       string
 		successful bool
+		errMsg     string
 	}
 
 	numHosts := len(inventory.All.Hosts)
@@ -145,11 +155,11 @@ func copySshKeyToNode(sshPassword string) (errorNodes []string) {
 		for j := start; j <= end; j++ {
 			go func(host Host, resultCh chan copyResult) {
 				hostname := inventory.All.Vars.Ansible_user + "@" + host.Ansible_host + ":" + inventory.All.Vars.Ansible_port
-				cmdString := fmt.Sprintf("echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p %s %s@%s",
+				cmdString := fmt.Sprintf("mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"%s\" | sshpass ssh-copy-id -i \"%s\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p %s %s@%s",
 					sshPassword, containerSshKeyFile, inventory.All.Vars.Ansible_port, inventory.All.Vars.Ansible_user, host.Ansible_host)
-				_, err := execCommand(cmdString, 0, inContainer)
+				output, err := execCommand(cmdString, 0, inContainer)
 				if err != nil {
-					resultCh <- copyResult{host: hostname, successful: false}
+					resultCh <- copyResult{host: hostname, successful: false, errMsg: errorText(err, output)}
 				} else {
 					resultCh <- copyResult{host: hostname, successful: true}
 				}
@@ -161,11 +171,12 @@ func copySshKeyToNode(sshPassword string) (errorNodes []string) {
 			result = <-resultCh
 			if !result.successful {
 				errorNodes = append(errorNodes, result.host)
+				errorMsgs = append(errorMsgs, result.host+"\n"+result.errMsg)
 			}
 		}
 	}
 
-	return errorNodes
+	return errorNodes, errorMsgs
 }
 
 func initFlexDeployCluster() {
@@ -332,14 +343,15 @@ func initFlexDeployCluster() {
 				ch <- true
 			}()
 
-			errorNodes := copySshKeyToNode(sshPassword)
+			errorNodes, errorMsgs := copySshKeyToNode(sshPassword)
 
 			// Wait until modal draw finish
 			<-ch
 
 			if len(errorNodes) > 0 {
 				showErrorModal(fmt.Sprintf("Can't copy SSH key to these nodes %v \n"+
-					"Please make sure SSH port of the host is accessible, and SSH password is correct.", errorNodes),
+					"Please make sure SSH port of the host is accessible, and SSH password is correct.\n\n%s",
+					errorNodes, strings.Join(errorMsgs, "\n\n")),
 					func(buttonIndex int, buttonLabel string) {
 						pages.SwitchToPage("Deploy Cluster")
 					})

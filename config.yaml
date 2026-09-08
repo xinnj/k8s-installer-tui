@@ -1,10 +1,10 @@
-unsafe_show_logs: true
 predefined_node_labels:
   zone: "zone1"
 predefined_node_taints:
   - "logging:NoSchedule"
   - "monitoring:NoSchedule"
 default_vars:
+  unsafe_show_logs: true
   ntp_package: chrony
   download_run_once: true
   download_localhost: true
@@ -51,7 +51,7 @@ configurable_vars:
               skip_verify: true
   - description: "Install k8s-node-watcher: "
     var:
-      install_k8s_node_watcher: true
+      install_k8s_node_watcher: false
   - description: "Install CSI snapshot controller: "
     var:
       csi_snapshot_controller_enabled: true
