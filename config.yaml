@@ -34,6 +34,7 @@ default_vars:
   containerd_static_binary: true
   kube_kubeadm_apiserver_extra_args:
     tls-min-version: VersionTLS13
+  kube_network_plugin: flannel
 configurable_vars:
   - description: "Enable NTP: "
     var:

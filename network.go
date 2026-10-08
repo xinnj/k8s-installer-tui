@@ -27,13 +27,13 @@ func initFlexNetwork() {
 	check(err)
 
 	if !initialNetworkLoaded {
-		networkPlugin = "calico"
+		networkPlugin = "flannel"
 		if extraVars["kube_network_plugin"] != nil {
 			networkPlugin = extraVars["kube_network_plugin"].(string)
 		}
 		initialNetworkLoaded = true
 	}
-	networkPlugins := []string{"calico", "flannel"}
+	networkPlugins := []string{"flannel", "calico"}
 	initialPlugin := slices.Index(networkPlugins, networkPlugin)
 	formNetwork.AddDropDown("Network Plugin: ", networkPlugins, initialPlugin, func(option string, optionIndex int) {
 		if networkPlugin != option {
