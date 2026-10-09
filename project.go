@@ -208,6 +208,7 @@ func initFormNewProject() {
 
 		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
 		populateInventory()
+		chownToRunner(projectPath)
 		flexEditHosts.Clear()
 		initFlexEditHosts("")
 		pages.SwitchToPage("Edit Hosts")
@@ -300,6 +301,7 @@ func loadInventory() error {
 		}
 	} else {
 		execCommandAndCheck("cp -af "+filepath.Join(kubesprayPath, "inventory/sample/*")+" "+projectPath, 0, false)
+		chownToRunner(projectPath)
 	}
 
 	data, err := os.ReadFile(inventoryFile)
@@ -366,4 +368,6 @@ func saveInventory() {
 		err = os.WriteFile(extraVarsFile, data, 0644)
 		check(err)
 	}
+
+	chownToRunner(projectPath)
 }

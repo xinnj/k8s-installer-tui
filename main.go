@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 
@@ -17,11 +18,28 @@ const kubesprayRuntimeTag = "docker.io/xinnj/kubespray-runtime:2.29.1"
 const kubesprayRuntimeFile = "docker.io_xinnj_kubespray-runtime-2.29.1.tar"
 const inContainer = true
 
-var homePath, _ = os.UserHomeDir()
+// homePath is the home directory of the user who invoked the app. When run
+// under sudo, $HOME is reset to the target user's home (/root), so the
+// invoking user's home is taken from SUDO_USER instead.
+var homePath = resolveHomePath()
 var offlinePath = filepath.Join(homePath, "/k8s-installer-offline")
 var containerTool = filepath.Join(offlinePath, "podman")
 var appPath string
 var kubesprayPath string
+
+func resolveHomePath() string {
+	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+		if u, err := user.Lookup(sudoUser); err == nil && u.HomeDir != "" {
+			return u.HomeDir
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Can't determine the home directory: "+err.Error())
+		os.Exit(1)
+	}
+	return home
+}
 
 type AppConfig struct {
 	Predefined_node_labels map[string]string
@@ -71,6 +89,8 @@ func prepareKubespray() {
 			kubesprayPath, matches[0], kubesprayPath, appPath, kubesprayPath)
 		execCommandAndCheck(cmd, 0, false)
 	}
+
+	chownToRunner(kubesprayPath)
 }
 
 func installDependencies() {
@@ -161,6 +181,10 @@ func main() {
 	prepareKubespray()
 
 	installDependencies()
+
+	chownToRunner(offlinePath)
+	chownToRunner(filepath.Join(homePath, ".idocluster-dependencies-installed"))
+	chownToRunner(filepath.Join(appPath, ".idocluster-dependencies-installed"))
 
 	output, err := execCommand("sudo "+containerTool+" --version", 0, false)
 	if err != nil || len(output) == 0 {

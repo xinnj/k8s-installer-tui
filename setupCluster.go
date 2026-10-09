@@ -311,6 +311,8 @@ eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kube
 
 	processState = cmd.ProcessState
 
+	chownToRunner(projectPath)
+
 	stopTimer <- true
 
 	app.QueueUpdateDraw(func() {

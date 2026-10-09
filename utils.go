@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"math"
 	"net/netip"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -78,6 +81,29 @@ func checkPrivilege() {
 		fmt.Println("Application must run as sudoer.")
 		os.Exit(1)
 	}
+}
+
+// chownToRunner gives path, and everything under it, to the user who invoked
+// the app with sudo. The app runs as root, so everything it creates - the
+// extracted kubespray tree, the offline materials, the cluster project - would
+// otherwise be owned by root and be unusable to that user. It does nothing
+// when the app is not started with sudo.
+func chownToRunner(path string) error {
+	uid, err := strconv.Atoi(os.Getenv("SUDO_UID"))
+	if err != nil {
+		return nil
+	}
+	gid, err := strconv.Atoi(os.Getenv("SUDO_GID"))
+	if err != nil {
+		return nil
+	}
+
+	return filepath.WalkDir(path, func(p string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Lchown(p, uid, gid)
+	})
 }
 
 func showErrorModal(text string, handler func(buttonIndex int, buttonLabel string)) {
