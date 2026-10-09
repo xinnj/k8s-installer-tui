@@ -5,8 +5,10 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/AEROGU/tvchooser"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"golang.org/x/exp/slices"
@@ -179,6 +181,111 @@ func copySshKeyToNode(sshPassword string) (errorNodes []string, errorMsgs []stri
 	return errorNodes, errorMsgs
 }
 
+// sshKeyField is a form item showing an editable SSH key path and a "Browse"
+// button on the same row. tview puts every button of a form into the form's
+// own button row at the bottom, so the two controls are combined into a single
+// form item here to keep the button next to the field.
+type sshKeyField struct {
+	*tview.Flex
+
+	input  *tview.InputField
+	button *tview.Button
+	label  string
+}
+
+func newSshKeyField(label, text string, changed func(text string)) *sshKeyField {
+	input := tview.NewInputField().
+		SetLabel(label).
+		SetText(text).
+		SetChangedFunc(changed)
+	button := tview.NewButton("Browse")
+
+	return &sshKeyField{
+		Flex: tview.NewFlex().
+			AddItem(input, 0, 1, true).
+			AddItem(tview.NewBox(), 1, 0, false).
+			AddItem(button, tview.TaggedStringWidth(button.GetLabel())+4, 0, false),
+		input:  input,
+		button: button,
+		label:  label,
+	}
+}
+
+func (f *sshKeyField) GetLabel() string {
+	return f.label
+}
+
+func (f *sshKeyField) SetFormAttributes(labelWidth int, labelColor, bgColor, fieldTextColor, fieldBgColor tcell.Color) tview.FormItem {
+	f.input.SetFormAttributes(labelWidth, labelColor, bgColor, fieldTextColor, fieldBgColor)
+	f.SetBackgroundColor(bgColor)
+	return f
+}
+
+func (f *sshKeyField) GetFieldWidth() int {
+	return 0
+}
+
+func (f *sshKeyField) GetFieldHeight() int {
+	return 1
+}
+
+func (f *sshKeyField) SetDisabled(disabled bool) tview.FormItem {
+	f.input.SetDisabled(disabled)
+	f.button.SetDisabled(disabled)
+	return f
+}
+
+// SetFinishedFunc stores the form's handler for leaving this item. Tab moves
+// from the key path to the Browse button and from there on to the next form
+// item, so the button keeps tview's keyboard navigation.
+func (f *sshKeyField) SetFinishedFunc(handler func(key tcell.Key)) tview.FormItem {
+	f.input.SetFinishedFunc(func(key tcell.Key) {
+		if key == tcell.KeyTab {
+			app.SetFocus(f.button)
+			return
+		}
+		handler(key)
+	})
+	f.button.SetExitFunc(func(key tcell.Key) {
+		if key == tcell.KeyBacktab {
+			app.SetFocus(f.input)
+			return
+		}
+		handler(key)
+	})
+	return f
+}
+
+func (f *sshKeyField) SetBrowseFunc(handler func()) {
+	f.button.SetSelectedFunc(handler)
+}
+
+func (f *sshKeyField) SetText(text string) {
+	f.input.SetText(text)
+}
+
+// browseSshKeyFile opens the file picker and returns the selected path, or ""
+// if the user cancelled. The picker has no start directory: the paths given to
+// it become entries of its "Favorites" list, which is expanded on open. The
+// home directory comes first so that it acts as the default location.
+func browseSshKeyFile() string {
+	favorites := []string{homePath + "|Home"}
+	if sshDir := filepath.Join(homePath, ".ssh"); pathExists(sshDir) {
+		favorites = append(favorites, sshDir+"|SSH keys")
+	}
+	if pathExists(projectPath) {
+		favorites = append(favorites, projectPath+"|Cluster project")
+	}
+
+	// Hidden files are shown so that keys in hidden directories such as ~/.ssh can be picked.
+	return tvchooser.FileChooser(app, true, favorites...)
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func initFlexDeployCluster() {
 	formUp := tview.NewForm()
 	if setupNewCluster {
@@ -223,10 +330,16 @@ func initFlexDeployCluster() {
 		if sshKeyFile == "" {
 			sshKeyFile = defaultSshKeyfile
 		}
-		formUp.
-			AddInputField("SSH key file: ", sshKeyFile, 0, nil, func(text string) {
-				sshKeyFile = strings.Trim(text, " ")
-			})
+		sshKey := newSshKeyField("SSH key file: ", sshKeyFile, func(text string) {
+			sshKeyFile = strings.Trim(text, " ")
+		})
+		sshKey.SetBrowseFunc(func() {
+			if path := browseSshKeyFile(); path != "" {
+				sshKeyFile = path
+				sshKey.SetText(path)
+			}
+		})
+		formUp.AddFormItem(sshKey)
 	}
 
 	inventoryContentByte, err := yaml.Marshal(&inventory)

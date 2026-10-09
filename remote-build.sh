@@ -59,7 +59,7 @@ step2_build() {
 
     ssh ${SSH_OPTS} \
         "${REMOTE_USER}@${REMOTE_HOST}" \
-        "cd ${REMOTE_PATH} && CGO_ENABLED=0 go build -o k8s-installer-tui ."
+        "source .profile && cd ${REMOTE_PATH} && CGO_ENABLED=0 go build -o k8s-installer-tui ."
 
     echo_info "Go build completed successfully!"
 }
