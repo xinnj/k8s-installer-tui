@@ -54,34 +54,15 @@ func initFlexHaMode() {
 	formDown := tview.NewForm()
 
 	formDown.AddButton("Save & Next", func() {
-		if haMode == "localhost loadbalancing" {
-			extraVars["loadbalancer_apiserver_localhost"] = true
-			delete(extraVars, "kube_vip_enabled")
-			delete(extraVars, "kube_vip_controlplane_enabled")
-			delete(extraVars, "kube_vip_arp_enabled")
-			delete(extraVars, "kube_proxy_strict_arp")
-			delete(extraVars, "kube_vip_lb_enable")
-			delete(extraVars, "loadbalancer_apiserver")
-			delete(extraVars, "kube_vip_address")
-		} else {
-			if vip == "" {
-				showErrorModal("Please provide VIP.",
-					func(buttonIndex int, buttonLabel string) {
-						pages.SwitchToPage("HA Mode")
-					})
-				return
-			}
-
-			extraVars["loadbalancer_apiserver_localhost"] = false
-			extraVars["kube_vip_enabled"] = true
-			extraVars["kube_vip_controlplane_enabled"] = true
-			extraVars["kube_vip_arp_enabled"] = true
-			extraVars["kube_proxy_strict_arp"] = true
-			extraVars["kube_vip_lb_enable"] = true
-			extraVars["kube_vip_address"] = vip
-			apiServer := map[string]string{"address": vip, "port": "6443"}
-			extraVars["loadbalancer_apiserver"] = apiServer
+		if haMode == "kube-vip" && vip == "" {
+			showErrorModal("Please provide VIP.",
+				func(buttonIndex int, buttonLabel string) {
+					pages.SwitchToPage("HA Mode")
+				})
+			return
 		}
+
+		applyHaMode(haMode, vip, extraVars)
 
 		saveInventory()
 
@@ -119,4 +100,35 @@ func initFlexHaMode() {
 		}
 		return event
 	})
+}
+
+// applyHaMode records the selected HA mode in extraVars. Kubespray >= 2.29 no
+// longer writes lb-apiserver.kubernetes.local into /etc/hosts, but still uses
+// that name as the apiserver endpoint once loadbalancer_apiserver is set, so
+// the endpoint is pointed at the VIP itself, the same way upstream does since
+// kubernetes-sigs/kubespray#12872.
+func applyHaMode(mode string, vip string, extraVars map[string]any) {
+	if mode == "localhost loadbalancing" {
+		extraVars["loadbalancer_apiserver_localhost"] = true
+		delete(extraVars, "kube_vip_enabled")
+		delete(extraVars, "kube_vip_controlplane_enabled")
+		delete(extraVars, "kube_vip_arp_enabled")
+		delete(extraVars, "kube_proxy_strict_arp")
+		delete(extraVars, "kube_vip_lb_enable")
+		delete(extraVars, "loadbalancer_apiserver")
+		delete(extraVars, "kube_vip_address")
+		delete(extraVars, "apiserver_loadbalancer_domain_name")
+		return
+	}
+
+	extraVars["loadbalancer_apiserver_localhost"] = false
+	extraVars["kube_vip_enabled"] = true
+	extraVars["kube_vip_controlplane_enabled"] = true
+	extraVars["kube_vip_arp_enabled"] = true
+	extraVars["kube_proxy_strict_arp"] = true
+	extraVars["kube_vip_lb_enable"] = true
+	extraVars["kube_vip_address"] = vip
+	apiServer := map[string]string{"address": vip, "port": "6443"}
+	extraVars["loadbalancer_apiserver"] = apiServer
+	extraVars["apiserver_loadbalancer_domain_name"] = vip
 }
