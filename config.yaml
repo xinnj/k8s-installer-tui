@@ -35,6 +35,12 @@ default_vars:
   kube_kubeadm_apiserver_extra_args:
     tls-min-version: VersionTLS13
   kube_network_plugin: flannel
+  # Kylin (and other RHEL-family) images set net.ipv4.conf.all.rp_filter=1, which
+  # drops node-sourced traffic to remote pods on flannel vxlan. Loose mode (2) is
+  # broken on the Kylin kernel too, so only 0 works everywhere.
+  additional_sysctl:
+    - { name: net.ipv4.conf.all.rp_filter, value: 0 }
+    - { name: net.ipv4.conf.default.rp_filter, value: 0 }
 configurable_vars:
   - description: "Enable NTP: "
     var:
