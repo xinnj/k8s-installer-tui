@@ -67,7 +67,14 @@ func initFlexSetupCluster(clean bool) {
 					}
 					if buttonLabel == "Abort" {
 						if inContainer {
-							execCommandAndCheck("sudo "+containerTool+" rm -a -f", 0, false)
+							// The Ansible run is a process of the shared
+							// container now: killing this client only ends the
+							// view of it. Removing the container is what stops
+							// the run, and the next command builds a new one.
+							if err := removeContainer(); err != nil {
+								appendToLog("\n===== aborting: " + err.Error() + " =====\n")
+							}
+							forgetContainer()
 						}
 						pgid, err := syscall.Getpgid(process.Pid)
 						if err == nil {
@@ -257,18 +264,24 @@ eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kube
 
 	createCommandFile(cmdString)
 
-	cmdArg := ""
-	if inContainer {
-		cmdArg = fmt.Sprintf("sudo %s run --privileged --network=host --replace --name kubespray --rm "+
-			"-e PODMAN_IGNORE_CGROUPSV1_WARNING=true "+
-			"-v '%s':'/data/k8s-installer-tui' -v '%s':'/data/idocluster' -v '%s':'/data/k8s-installer-offline' %s "+
-			"/bin/bash -c 'cd /data/k8s-installer-tui/kubespray; /bin/bash \"/data/idocluster/._commands\"'",
-			containerTool, appPath, projectPath, offlinePath, kubesprayRuntimeTag)
-	} else {
-		cmdArg = fmt.Sprintf("\"%s/._commands\"", projectPath)
+	// The playbook runs in the same container the SSH checks ran in, so what it
+	// reads and writes is the same project directory they did.
+	if err := ensureContainer(); err != nil {
+		check(err)
 	}
 
-	cmd := exec.Command("/bin/bash", "-c", cmdArg)
+	var cmd *exec.Cmd
+	if inContainer {
+		// The command vector hands the command file to the container's bash
+		// untouched: no shell on the host parses it, so nothing in the paths
+		// can be rearranged on the way in. The cgroups v1 warning podman would
+		// print over the TUI is silenced on the host side, by sudoPodman.
+		argv := containerExecArgv(containerTool, containerName,
+			"cd /data/k8s-installer-tui/kubespray; /bin/bash \"/data/idocluster/._commands\"", nil)
+		cmd = exec.Command(argv[0], argv[1:]...)
+	} else {
+		cmd = exec.Command("/bin/bash", "-c", fmt.Sprintf("\"%s/._commands\"", projectPath))
+	}
 	cmd.Dir = kubesprayPath
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

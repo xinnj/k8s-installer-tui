@@ -68,7 +68,6 @@ var flexMirror = tview.NewFlex()
 var flexDeployCluster = tview.NewFlex()
 var logFileName string
 var flexSetupCluster = tview.NewFlex()
-var defaultSshKeyfile = filepath.Join(projectPath, "ansible-key")
 var extraVars map[string]any
 var flexSetupMode = tview.NewFlex()
 var setupNewCluster bool
@@ -108,7 +107,7 @@ func installDependencies() {
 
 	fmt.Println("Install dependencies. Please wait a while...")
 
-	_, err1 = execCommand("sudo podman --version", 0, false)
+	_, err1 = execCommand("sudo env "+podmanEnv+" podman --version", 0, false)
 	_, err2 = os.Stat(filepath.Join(offlinePath, "podman"))
 	if err1 != nil && err2 != nil {
 		fmt.Println("Downloading podman")
@@ -127,10 +126,10 @@ func installDependencies() {
 	_, err := os.Stat(filepath.Join(offlinePath, kubesprayRuntimeFile))
 	if err != nil {
 		fmt.Println("Pulling kubespray runtime image from registry")
-		cmds = append(cmds, fmt.Sprintf("sudo %s pull %s", containerTool, kubesprayRuntimeTag))
+		cmds = append(cmds, sudoPodman("pull "+kubesprayRuntimeTag))
 	} else {
 		fmt.Println("Loading kubespray runtime image from offline file")
-		cmds = append(cmds, fmt.Sprintf("sudo %s load -i %s", containerTool, filepath.Join(offlinePath, kubesprayRuntimeFile)))
+		cmds = append(cmds, sudoPodman("load -i "+filepath.Join(offlinePath, kubesprayRuntimeFile)))
 	}
 
 	cmdsLen := len(cmds)
@@ -186,11 +185,16 @@ func main() {
 	chownToRunner(filepath.Join(homePath, ".idocluster-dependencies-installed"))
 	chownToRunner(filepath.Join(appPath, ".idocluster-dependencies-installed"))
 
-	output, err := execCommand("sudo "+containerTool+" --version", 0, false)
+	output, err := execCommand(sudoPodman("--version"), 0, false)
 	if err != nil || len(output) == 0 {
 		fmt.Println("Can't execute " + containerTool + ". Please check the installation.")
 		os.Exit(1)
 	}
+
+	// Nothing replaces a container any more, so a container an earlier run left
+	// behind - one still running an Ansible playbook, say - would keep working
+	// on a cluster nobody is watching.
+	removeLeftoverContainers()
 
 	initFlexSetupMode()
 
