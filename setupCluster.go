@@ -131,8 +131,19 @@ func initFlexSetupCluster(clean bool) {
 }
 
 func execCmd(view *tview.TextView) {
+	// hardening.yaml sits next to the binary and is mounted at
+	// /data/k8s-installer-tui in the container. Pass it last so its values win
+	// over the project's extra-vars.yaml.
+	hardeningParam := ""
+	hardeningNotice := ""
+	if _, err := os.Stat(filepath.Join(appPath, "hardening.yaml")); err == nil {
+		hardeningParam = " -e @'/data/k8s-installer-tui/hardening.yaml'"
+	} else {
+		hardeningNotice = `echo "WARNING: hardening.yaml was not found next to the installer; continuing without the hardening profile." | tee -a "$log"`
+	}
+
 	ansibleCommonParameters := "--become --ssh-extra-args='-o StrictHostKeyChecking=no' -i /data/idocluster/hosts.yaml " +
-		"--private-key=/data/idocluster/ansible-key -e @'/data/idocluster/extra-vars.yaml'"
+		"--private-key=/data/idocluster/ansible-key -e @'/data/idocluster/extra-vars.yaml'" + hardeningParam
 
 	startTime = time.Now()
 
@@ -152,6 +163,7 @@ set -euao pipefail
 
 export parameters="%s"
 export log="/data/idocluster/%s"
+%s
 
 echo "====================Setup / Update a cluster====================" | tee -a "$log"
 
@@ -169,7 +181,7 @@ echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
 eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kubectl get node'" 2>&1 | tee -a "$log"
-`, ansibleCommonParameters, logFileName)
+`, ansibleCommonParameters, logFileName, hardeningNotice)
 	} else {
 		// Add node to existing cluster
 		var addedControlAndEtcdNodes, addedWorkNodes []string
@@ -235,6 +247,7 @@ set -euao pipefail
 
 export parameters="%s"
 export log="/data/idocluster/%s"
+%s
 
 echo "====================Add node to cluster====================" | tee -a "$log"
 
@@ -259,7 +272,7 @@ echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
 eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kubectl get node'" 2>&1 | tee -a "$log"
-`, ansibleCommonParameters, logFileName, cmdAddControlNode, cmdAddWorkNode)
+`, ansibleCommonParameters, logFileName, hardeningNotice, cmdAddControlNode, cmdAddWorkNode)
 	}
 
 	createCommandFile(cmdString)

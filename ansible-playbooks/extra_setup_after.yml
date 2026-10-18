@@ -14,3 +14,28 @@
       when:
         - install_k8s_node_watcher|default(false)
         - groups['kube_node'] | length >= 2
+
+# Install kubelet-csr-approver from the local chart/image cache only when the
+# hardening profile is present and server-cert rotation is enabled. The
+# hardening profile also disables kubespray's online chart role.
+- hosts: k8s_cluster
+  gather_facts: False
+  any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
+  pre_tasks:
+    - name: Check whether the hardening profile is present
+      ansible.builtin.stat:
+        path: /data/k8s-installer-tui/hardening.yaml
+      delegate_to: localhost
+      connection: local
+      register: hardening_profile
+  roles:
+    - role: kubespray_defaults
+      when:
+        - hardening_profile.stat.exists
+        - kubelet_rotate_server_certificates|default(false)|bool
+        - not (kubelet_csr_approver_enabled|default(false)|bool)
+    - role: kubelet-csr-approver-offline
+      when:
+        - hardening_profile.stat.exists
+        - kubelet_rotate_server_certificates|default(false)|bool
+        - not (kubelet_csr_approver_enabled|default(false)|bool)

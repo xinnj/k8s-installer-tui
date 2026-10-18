@@ -1,0 +1,165 @@
+---
+# Tailored hardening profile for k8s-installer-tui / kubespray 2.29.1.
+#
+# The installer passes this file to every ansible-playbook run as
+#   -e @/data/k8s-installer-tui/hardening.yaml
+# when it sits next to the installer binary. Keep it next to the binary; there
+# is no need to merge these keys into config.yaml or extra-vars.yaml.
+#
+# This is not docs/operations/hardening.md verbatim. Deliberately omitted:
+#   * kubelet_static_pod_path: ""
+#       The control plane, kube-vip and the local nginx/haproxy API proxy all
+#       run as static pods in this installer. Emptying the path stops kubelet
+#       from managing them.
+#   * AlwaysPullImages
+#       Forces a registry pull for every pod start. It breaks offline/air-gapped
+#       installs and any mirror that does not hold every image.
+#   * kube_controller_manager_bind_address / kube_scheduler_bind_address: 127.0.0.1
+#       Left at the kubespray default so Prometheus keeps scraping :10257/:10259.
+#       Uncomment them below if you do not scrape those endpoints.
+#
+# The CSR-approver chart and image are installed by the offline role in
+# ansible-roles/kubelet-csr-approver-offline from the kubespray download cache.
+# Pre-seed these two files for a fully offline install:
+#   <download_cache_dir>/kubelet-csr-approver-1.1.0.tgz
+#   <download_cache_dir>/images/ghcr.io_postfinance_kubelet-csr-approver_v1.1.0.tar
+
+## kube-apiserver
+authorization_modes: ['Node', 'RBAC']          # already the default
+kube_apiserver_request_timeout: 120s
+kube_apiserver_service_account_lookup: true    # already the default
+
+# Audit. The file lands on each control-plane host under
+# /var/log/kubernetes/audit/; rotation caps it near 1.1 GB per node.
+kubernetes_audit: true
+audit_log_path: "/var/log/audit/kube-apiserver-audit.log"
+audit_log_maxage: 30
+audit_log_maxbackups: 10
+audit_log_maxsize: 100
+
+# TLS is already configured in config.yaml; repeated here with the canonical
+# cipher-suite names. TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305 (without _SHA256)
+# is accepted as a legacy alias by kube-apiserver.
+tls_min_version: VersionTLS12
+tls_cipher_suites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+
+# Encryption at rest. The key is generated once at
+# <inventory_dir>/credentials/kube_encrypt_token.creds. Back it up with the
+# etcd snapshots: without it, encrypted Secrets cannot be read.
+kube_encrypt_secret_data: true
+kube_encryption_resources: [secrets]
+kube_encryption_algorithm: "secretbox"
+
+# AlwaysPullImages is intentionally absent; see the header.
+kube_apiserver_enable_admission_plugins:
+  - EventRateLimit
+  - ServiceAccount
+  - NamespaceLifecycle
+  - NodeRestriction
+  - LimitRanger
+  - ResourceQuota
+  - MutatingAdmissionWebhook
+  - ValidatingAdmissionWebhook
+  - PodNodeSelector
+  - PodSecurity
+kube_apiserver_admission_control_config_file: true
+kube_apiserver_admission_event_rate_limits:
+  limit_1:
+    type: Namespace
+    qps: 50
+    burst: 100
+    cache_size: 2000
+  limit_2:
+    type: User
+    qps: 50
+    burst: 100
+# EventRateLimit only covers Event objects. PodNodeSelector has an empty
+# default selector, so it is a no-op until you set
+# kube_apiserver_admission_plugins_podnodeselector_default_node_selector.
+
+kube_profiling: false                           # already the default
+remove_anonymous_access: true
+# This removes the kubeadm cluster-info RoleBinding only; it does not disable
+# kube-apiserver --anonymous-auth. RBAC still governs anonymous requests.
+
+## kube-controller-manager
+kube_controller_terminated_pod_gc_threshold: 50
+# Uncomment only if controller-manager metrics are not scraped:
+# kube_controller_manager_bind_address: 127.0.0.1
+
+## kube-scheduler
+# Uncomment only if scheduler metrics are not scraped:
+# kube_scheduler_bind_address: 127.0.0.1
+
+## etcd
+# The installer already uses the kubespray default:
+etcd_deployment_type: host
+
+## kubelet
+kubelet_authentication_token_webhook: true     # already the default
+kubelet_authorization_mode_webhook: true       # already the default
+kube_read_only_port: 0                         # already the default
+kubelet_rotate_certificates: true              # already the default (client certs)
+# Enable kubelet serving-cert rotation; the offline role installs the approver.
+kubelet_rotate_server_certificates: true
+# Disable kubespray's online chart role; the offline role installs the cached
+# chart/image.
+kubelet_csr_approver_enabled: false
+# Chart 1.1.0 has appVersion v1.1.0 and an empty image.tag, so it pulls
+# ghcr.io/postfinance/kubelet-csr-approver:v1.1.0. The offline role derives
+# the cached tar name and the Helm image value from this reference; keep them
+# in sync if you override the image.
+kubelet_csr_approver_values:
+  # Uncomment and point at your registry if you need a rewritten repository
+  # path. The offline role will cache/load this reference instead.
+  # image:
+  #   repository: "registry.internal.example.com/postfinance/kubelet-csr-approver"
+  #   tag: "v1.1.0"
+  # The app's own default is .*; keep it explicit and tighten it to your node
+  # naming convention if you have one.
+  providerRegex: ".*"
+  # On-prem node names are often not resolvable by CoreDNS. Without this the
+  # approver denies the serving-cert CSR and rotation never completes. Remove
+  # it if your node DNS names resolve.
+  bypassDnsResolution: true
+kubelet_protect_kernel_defaults: true          # already the default
+kubelet_event_record_qps: 1
+kubelet_streaming_connection_idle_timeout: "5m"
+kubelet_make_iptables_util_chains: true        # kubelet's own default
+kubelet_seccomp_default: true
+
+# Keep the static-pod path intact: the control plane, kube-vip and the local
+# nginx/haproxy API proxy are static pods.
+kubelet_static_pod_path: "{{ kube_manifest_dir }}"
+
+# systemd IP allowlist for the kubelet process. IPAddressDeny=any means every
+# address kubelet talks to must be listed:
+#   * kube_node_addresses  - all node IPs (apiserver <-> kubelet)
+#   * kube_pods_subnets    - pod CIDRs (in-cluster clients)
+#   * kube_vip_address     - the API VIP when the kube-vip HA mode is used
+# Add your DNS resolver and load-balancer IP as well if your apiserver endpoint
+# is a DNS name rather than localhost/an IP.
+kubelet_systemd_hardening: true
+kubelet_secure_addresses: "localhost link-local {{ kube_pods_subnets | regex_replace(',', ' ') }} {{ kube_node_addresses }}{% if kube_vip_address is defined and kube_vip_address %} {{ kube_vip_address }}{% endif %}"
+# Check one Kylin node first: this needs systemd/kernel cgroup-BPF IP filtering.
+
+## file ownership
+kube_owner: root
+kube_cert_group: root
+# The kube user loses group access to certs/keys; the installer and kubectl run
+# as root, so this is safe here.
+
+## PodSecurity
+kube_pod_security_use_default: true
+kube_pod_security_default_enforce: restricted
+kube_pod_security_exemptions_namespaces:
+  - kube-system        # kubespray addons
+  - ingress-nginx      # DaemonSet publishes hostPort 80/443
+  - k8s-node-watcher   # optional installer addon; remove if unused
+# Add any other addon namespace here if its pods need hostPath, hostNetwork,
+# hostPort, privileged, or root (for example monitoring/prometheus for
+# node-exporter). Workloads in other namespaces must satisfy the restricted
+# Pod Security Standard or their pods are rejected when they are created.

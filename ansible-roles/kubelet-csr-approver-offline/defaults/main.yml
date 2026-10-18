@@ -1,0 +1,29 @@
+---
+# Offline installer for kubelet-csr-approver.
+#
+# This role runs only when the hardening profile is present and
+# kubelet_rotate_server_certificates is true. The hardening profile also
+# disables kubespray's online chart role with kubelet_csr_approver_enabled:
+# false.
+#
+# The chart and image are read through kubespray's normal download cache, so a
+# fully offline install only needs these two files pre-seeded:
+#   <download_cache_dir>/kubelet-csr-approver-1.1.0.tgz
+#   <download_cache_dir>/images/ghcr.io_postfinance_kubelet-csr-approver_v1.1.0.tar
+# In this installer download_cache_dir is
+# /data/k8s-installer-offline/kubespray_cache in the container, which is
+# ~/k8s-installer-offline/kubespray_cache on the host.
+kubelet_csr_approver_offline_chart_version: "{{ kubelet_csr_approver_chart_version | default('1.1.0') }}"
+kubelet_csr_approver_offline_chart_url: "https://postfinance.github.io/kubelet-csr-approver/kubelet-csr-approver-{{ kubelet_csr_approver_offline_chart_version }}.tgz"
+kubelet_csr_approver_offline_chart_dest: "{{ local_release_dir }}/kubelet-csr-approver-{{ kubelet_csr_approver_offline_chart_version }}.tgz"
+
+kubelet_csr_approver_offline_release_name: kubelet-csr-approver
+kubelet_csr_approver_offline_namespace: "{{ kubelet_csr_approver_namespace | default('kube-system') }}"
+
+# Reuse the values the built-in kubespray role would pass. The image
+# repository and tag are resolved here and written back into the Helm values,
+# so the cached tar and the chart always request the same image. Chart 1.1.0
+# defaults to ghcr.io/postfinance/kubelet-csr-approver with appVersion v1.1.0.
+kubelet_csr_approver_offline_image_repo: "{{ ((kubelet_csr_approver_values | default({}, true)).image | default({}, true)).repository | default('ghcr.io/postfinance/kubelet-csr-approver', true) }}"
+kubelet_csr_approver_offline_image_tag: "{{ ((kubelet_csr_approver_values | default({}, true)).image | default({}, true)).tag | default('v' ~ kubelet_csr_approver_offline_chart_version, true) }}"
+kubelet_csr_approver_offline_values: "{{ (kubelet_csr_approver_values | default({}, true)) | combine({'image': {'repository': kubelet_csr_approver_offline_image_repo, 'tag': kubelet_csr_approver_offline_image_tag}}, recursive=True) }}"

@@ -1,0 +1,62 @@
+---
+- name: kubelet-csr-approver | Gather host facts to get ansible_os_family
+  setup:
+    gather_subset: '!all'
+    filter: ansible_*
+
+- name: kubelet-csr-approver | Use the download cache
+  set_fact:
+    download_force_cache: "{{ true if (download_run_once | default(false)) else (download_force_cache | default(false)) }}"
+
+- name: kubelet-csr-approver | Download chart
+  include_tasks: "../../download/tasks/download_file.yml"
+  vars:
+    kubelet_csr_approver_offline_chart:
+      file: true
+      version: "{{ kubelet_csr_approver_offline_chart_version }}"
+      dest: "{{ kubelet_csr_approver_offline_chart_dest }}"
+      checksum: ""
+      url: "{{ kubelet_csr_approver_offline_chart_url }}"
+      unarchive: false
+      owner: "root"
+      mode: "0644"
+      groups:
+        - kube_control_plane[0]
+    download: "{{ download_defaults | combine(kubelet_csr_approver_offline_chart) }}"
+
+- name: kubelet-csr-approver | Create the image cache directory
+  file:
+    path: "{{ download_cache_dir }}/images"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  connection: local
+  run_once: true
+  become: false
+  when: download_force_cache | bool
+
+- name: kubelet-csr-approver | Download image
+  include_tasks: "../../download/tasks/download_container.yml"
+  vars:
+    kubelet_csr_approver_offline_image:
+      container: true
+      repo: "{{ kubelet_csr_approver_offline_image_repo }}"
+      tag: "{{ kubelet_csr_approver_offline_image_tag }}"
+      sha256: ""
+      groups:
+        - k8s_cluster
+    download: "{{ download_defaults | combine(kubelet_csr_approver_offline_image) }}"
+
+- name: kubelet-csr-approver | Install Helm release
+  delegate_to: "{{ groups['kube_control_plane'][0] }}"
+  run_once: true
+  kubernetes.core.helm:
+    name: "{{ kubelet_csr_approver_offline_release_name }}"
+    binary_path: "{{ bin_dir }}/helm"
+    chart_ref: "{{ kubelet_csr_approver_offline_chart_dest }}"
+    release_namespace: "{{ kubelet_csr_approver_offline_namespace }}"
+    create_namespace: false
+    values: "{{ kubelet_csr_approver_offline_values }}"
+    wait: true
+    atomic: true
+  become: true
