@@ -1,12 +1,16 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -72,24 +76,85 @@ var extraVars map[string]any
 var flexSetupMode = tview.NewFlex()
 var setupNewCluster bool
 
+// patchStampFileName is the file in the kubespray tree that records which
+// archive and patch set built it. A tree with another build's stamp is rebuilt
+// rather than patched in place: the patches are full-file replacements, so an
+// old one has to give way to the archive's own file, and a new archive has to
+// replace the old tree.
+const patchStampFileName = ".idocluster-patches"
+
 func prepareKubespray() {
 	kubesprayPath = filepath.Join(appPath, "kubespray")
-	_, err := os.Stat(kubesprayPath)
-	// Path not exist, extract the package
-	if err != nil {
-		matches, err := filepath.Glob(filepath.Join(appPath, "kubespray-*.tar.gz"))
+
+	patches, err := patchFingerprint(filepath.Join(appPath, "patches"))
+	check(err)
+
+	matches, err := filepath.Glob(filepath.Join(appPath, "kubespray-*.tar.gz"))
+	check(err)
+	archive := ""
+	if len(matches) > 0 {
+		info, err := os.Stat(matches[0])
 		check(err)
-		if matches == nil {
-			panic("Can't find kubespray archive file.")
-		}
-		cmd := fmt.Sprintf("mkdir -p %s;"+
-			"tar xvf %s -C %s --strip-components=1;"+
-			"cp -af %s/patches/* %s",
-			kubesprayPath, matches[0], kubesprayPath, appPath, kubesprayPath)
-		execCommandAndCheck(cmd, 0, false)
+		archive = fmt.Sprintf("%s|%d", filepath.Base(matches[0]), info.Size())
 	}
 
+	// A host that keeps only the extracted tree has no archive to compare, so
+	// matching patches are enough there.
+	if stamp, err := os.ReadFile(filepath.Join(kubesprayPath, patchStampFileName)); err == nil {
+		stampedPatches, stampedArchive, _ := strings.Cut(string(stamp), "\n")
+		if stampedPatches == patches && (archive == "" || stampedArchive == archive) {
+			chownToRunner(kubesprayPath)
+			return
+		}
+	}
+
+	if archive == "" {
+		panic("Can't find kubespray archive file. Put kubespray-*.tar.gz next to the installer so " + kubesprayPath + " can be rebuilt.")
+	}
+
+	cmd := fmt.Sprintf("mkdir -p %s;"+
+		"tar xf %s -C %s --strip-components=1;"+
+		"cp -af %s/patches/* %s",
+		kubesprayPath, matches[0], kubesprayPath, appPath, kubesprayPath)
+	execCommandAndCheck(cmd, 0, false)
+
+	check(os.WriteFile(filepath.Join(kubesprayPath, patchStampFileName), []byte(patches+"\n"+archive), 0644))
+
 	chownToRunner(kubesprayPath)
+}
+
+// patchFingerprint identifies the patch set this build ships: the relative
+// path and the content of every file under patchDir. A tree built with the
+// same patches has the same fingerprint.
+func patchFingerprint(patchDir string) (string, error) {
+	hash := sha256.New()
+	err := filepath.WalkDir(patchDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+
+		relative, err := filepath.Rel(patchDir, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(hash, "%s\n", relative)
+		hash.Write(content)
+
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func installDependencies() {

@@ -31,6 +31,36 @@ func simRows(sim tcell.SimulationScreen) []string {
 	return rows
 }
 
+// screenRows reads the simulation screen on the application's own goroutine:
+// the screen is drawn there, and reading it from the test goroutine races with
+// the draw.
+func screenRows(t *testing.T, testApp *tview.Application, sim tcell.SimulationScreen) []string {
+	t.Helper()
+
+	var rows []string
+	testApp.QueueUpdateDraw(func() {
+		rows = simRows(sim)
+	})
+	return rows
+}
+
+// focusPrimitive and primitiveHasFocus move focus work onto the application's
+// goroutine: the event loop writes the focus state, and reading or setting it
+// from the test goroutine races with the loop.
+func focusPrimitive(testApp *tview.Application, primitive tview.Primitive) {
+	testApp.QueueUpdateDraw(func() {
+		testApp.SetFocus(primitive)
+	})
+}
+
+func primitiveHasFocus(testApp *tview.Application, primitive tview.Primitive) bool {
+	var focused bool
+	testApp.QueueUpdateDraw(func() {
+		focused = primitive.HasFocus()
+	})
+	return focused
+}
+
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
@@ -48,6 +78,12 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 // of the SSH key path without disturbing the form layout, and that Tab walks
 // from the path to the button and on to the next form item.
 func TestSshKeyFieldInDeployCluster(t *testing.T) {
+	// This test is about the layout a root SSH user sees: no sudo password
+	// field between the key and the inventory.
+	originalUser := inventory.All.Vars.Ansible_user
+	inventory.All.Vars.Ansible_user = "root"
+	defer func() { inventory.All.Vars.Ansible_user = originalUser }()
+
 	accessMethod = accessMethodsType.exist
 	sshKeyFile = "/root/.ssh/id_rsa"
 
@@ -57,20 +93,24 @@ func TestSshKeyFieldInDeployCluster(t *testing.T) {
 	}
 	sim.SetSize(100, 45)
 
-	app = tview.NewApplication().SetScreen(sim)
+	testApp := tview.NewApplication().SetScreen(sim)
+	app = testApp
+	// Every caller of initFlexDeployCluster clears the flex first, so that the
+	// page it builds replaces the one there rather than stacking on it.
+	flexDeployCluster.Clear()
 	initFlexDeployCluster()
-	app.SetRoot(flexDeployCluster, true)
+	testApp.SetRoot(flexDeployCluster, true)
 
 	go func() {
-		if err := app.Run(); err != nil {
+		if err := testApp.Run(); err != nil {
 			t.Error(err)
 		}
 	}()
-	defer app.Stop()
+	defer testApp.Stop()
 
 	var rows []string
 	waitFor(t, "the deploy page to be drawn", func() bool {
-		rows = simRows(sim)
+		rows = screenRows(t, testApp, sim)
 		for _, row := range rows {
 			if strings.Contains(row, "SSH key file:") {
 				return true
@@ -126,20 +166,103 @@ func TestSshKeyFieldInDeployCluster(t *testing.T) {
 	}
 
 	// Tab: path -> Browse -> next item, and Backtab: Browse -> path.
-	app.SetFocus(field)
-	waitFor(t, "focus on the path field", func() bool { return field.input.HasFocus() })
+	focusPrimitive(testApp, field)
+	waitFor(t, "focus on the path field", func() bool { return primitiveHasFocus(testApp, field.input) })
 
 	sim.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
-	waitFor(t, "Tab to move into the Browse button", func() bool { return field.button.HasFocus() })
+	waitFor(t, "Tab to move into the Browse button", func() bool { return primitiveHasFocus(testApp, field.button) })
 
 	sim.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
 	next := form.GetFormItem(2)
-	waitFor(t, "Tab to leave the row for the next form item", func() bool { return next.HasFocus() })
+	waitFor(t, "Tab to leave the row for the next form item", func() bool { return primitiveHasFocus(testApp, next) })
 
-	app.SetFocus(field)
-	waitFor(t, "focus back on the path field", func() bool { return field.input.HasFocus() })
+	focusPrimitive(testApp, field)
+	waitFor(t, "focus back on the path field", func() bool { return primitiveHasFocus(testApp, field.input) })
 	sim.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
-	waitFor(t, "Tab into the Browse button again", func() bool { return field.button.HasFocus() })
+	waitFor(t, "Tab into the Browse button again", func() bool { return primitiveHasFocus(testApp, field.button) })
 	sim.InjectKey(tcell.KeyBacktab, 0, tcell.ModNone)
-	waitFor(t, "Backtab from Browse back to the path field", func() bool { return field.input.HasFocus() })
+	waitFor(t, "Backtab from Browse back to the path field", func() bool { return primitiveHasFocus(testApp, field.input) })
+}
+
+// renderDeployCluster draws the Deploy Cluster page in a simulation screen and
+// returns the form it is built on, once the wanted text is on the page.
+func renderDeployCluster(t *testing.T, wanted string) *tview.Form {
+	t.Helper()
+
+	sim := tcell.NewSimulationScreen("UTF-8")
+	if err := sim.Init(); err != nil {
+		t.Fatal(err)
+	}
+	sim.SetSize(100, 45)
+
+	// The app is captured here rather than read from the global in the
+	// goroutine: the next test replaces the global, and a late goroutine would
+	// then run - and stop - that test's application.
+	testApp := tview.NewApplication().SetScreen(sim)
+	app = testApp
+	// Every caller of initFlexDeployCluster clears the flex first, so that the
+	// page it builds replaces the one there rather than stacking on it.
+	flexDeployCluster.Clear()
+	initFlexDeployCluster()
+	testApp.SetRoot(flexDeployCluster, true)
+
+	go func() {
+		if err := testApp.Run(); err != nil {
+			t.Error(err)
+		}
+	}()
+	t.Cleanup(testApp.Stop)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		rows := screenRows(t, testApp, sim)
+		found := false
+		for _, row := range rows {
+			if strings.Contains(row, wanted) {
+				found = true
+			}
+		}
+		if found {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%q is not on the deploy page:\n%s", wanted, strings.Join(rows, "\n"))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	form, ok := flexDeployCluster.GetItem(0).(*tview.Form)
+	if !ok {
+		t.Fatal("the page does not start with a form")
+	}
+	return form
+}
+
+// A non-root SSH user needs a sudo password, and an existing key comes with no
+// password to reuse, so the page has to ask for one.
+func TestExistingKeyFlowAsksForTheSudoPassword(t *testing.T) {
+	originalUser := inventory.All.Vars.Ansible_user
+	inventory.All.Vars.Ansible_user = "yw"
+	defer func() { inventory.All.Vars.Ansible_user = originalUser }()
+
+	accessMethod = accessMethodsType.exist
+	sshKeyFile = "/root/.ssh/id_rsa"
+
+	form := renderDeployCluster(t, "Sudo password")
+
+	if got := form.GetFormItem(2).GetLabel(); !strings.Contains(got, "Sudo password") {
+		t.Errorf("form item 2 label = %q, want the sudo password field", got)
+	}
+}
+
+// The new-key flow already asks for the password that copies the key, and that
+// same password is what sudo wants, so the label has to say both.
+func TestNewKeyFlowSaysThePasswordAlsoServesSudo(t *testing.T) {
+	originalUser := inventory.All.Vars.Ansible_user
+	inventory.All.Vars.Ansible_user = "yw"
+	defer func() { inventory.All.Vars.Ansible_user = originalUser }()
+
+	accessMethod = accessMethodsType.new
+
+	renderDeployCluster(t, "SSH / sudo Password:")
 }

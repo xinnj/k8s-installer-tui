@@ -31,6 +31,19 @@ var sshKeyFile = ""
 var containerSshKeyFile = "/data/idocluster/ansible-key"
 var containerSshPasswordFile = "/data/idocluster/ansible-password"
 
+// becomePasswordFileName is the file in the project directory that carries the
+// sudo password from the Deploy Cluster page to the playbook run. Ansible runs
+// in the container, a different process: it cannot read the app's memory, and a
+// password on a command line would be visible in ps, so it goes through a file
+// with mode 0600 - the same way the SSH password does. The file is kept after
+// the run so an ad-hoc ansible command can read it with --become-password-file.
+const becomePasswordFileName = "ansible-become-password"
+
+// sudoMarker is what the sudo stage prints when the node really let the SSH
+// user become root. It is read instead of the exit status, for the same reason
+// as the key login probe's identity marker.
+const sudoMarker = "IDOCLUSTER_SUDO_OK"
+
 // sshKeyPath and sshPasswordPath live in the project the wizard is working on,
 // which the user chooses on the Project page: they are worked out where they are
 // used, not when the app starts, so that the project chosen later is the one the
@@ -43,6 +56,56 @@ func sshPasswordPath() string {
 	return filepath.Join(projectPath, "ansible-password")
 }
 
+func becomePasswordPath() string {
+	return filepath.Join(projectPath, becomePasswordFileName)
+}
+
+// sshUserIsRoot reports whether the playbooks connect as root, in which case no
+// sudo password is needed.
+func sshUserIsRoot() bool {
+	return inventory.All.Vars.Ansible_user == "root"
+}
+
+// writeBecomePassword puts the sudo password where the playbook in the
+// container reads it, and nowhere else: mode 0600, next to the deployment key.
+// The file is made fresh every time, so a file left at the path - or a symlink
+// planted there - cannot keep looser permissions or redirect the write.
+func writeBecomePassword(password string) error {
+	if err := os.Remove(becomePasswordPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	file, err := os.OpenFile(becomePasswordPath(), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	if _, err := file.WriteString(password + "\n"); err != nil {
+		file.Close()
+		return err
+	}
+
+	return file.Close()
+}
+
+// removeBecomePassword deletes the password file. Best effort: a Start that
+// decides no password file is wanted must not fail because a stale one cannot
+// be removed.
+func removeBecomePassword() {
+	os.Remove(becomePasswordPath())
+}
+
+// prepareBecomePassword stages the file the sudo stage and the playbook read.
+// An empty password is not an error: a non-root user may have passwordless
+// sudo, and the sudo stage tells that case from one that needs a password.
+func prepareBecomePassword(password string) error {
+	if sshUserIsRoot() || password == "" {
+		removeBecomePassword()
+		return nil
+	}
+
+	return writeBecomePassword(password)
+}
+
 // hostName is how one node is named in the run log, in the answer file of a
 // check, and in the error modal.
 func hostName(host Host) string {
@@ -53,6 +116,7 @@ func hostName(host Host) string {
 const (
 	stageCopyKey  = "copy-key"
 	stageKeyLogin = "key-login"
+	stageSudo     = "sudo"
 	stageDiagnose = "diagnose"
 )
 
@@ -176,6 +240,7 @@ type hostResult struct {
 	host          string
 	successful    bool
 	errMsg        string // the line ssh reported about the failure
+	sudoFailure   bool   // the node took the key but refused the escalation
 	passwordLogin bool   // the failed command logged in with a password
 	diagnosis     string // the node's sshd facts, when the key was refused
 }
@@ -223,6 +288,51 @@ func keyLoginFailure(host Host, keyFile string) (errMsg, rawOutput string) {
 	return probeFailure(result.err, result.output), string(result.output)
 }
 
+// sudoCommand asks the node to become root as the SSH user, over the deployment
+// key alone. The probe clears the user's sudo timestamp first (-k), so a login
+// cached by an earlier command cannot make passwordless sudo look possible.
+// When a password was staged, it comes from the file written by
+// writeBecomePassword and goes to sudo -S over stdin: it never reaches a
+// command line.
+func sudoCommand(host Host, withPassword bool) string {
+	prefix := ""
+	check := "LC_ALL=C sudo -k -n true"
+	if withPassword {
+		prefix = "cat \"" + containerProjectFile(becomePasswordFileName) + "\" | "
+		check = `LC_ALL=C sudo -k -S -p "" true`
+	}
+
+	return fmt.Sprintf("mkdir -p ~/.ssh && %sssh -i \"%s\" -o IdentitiesOnly=yes -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p %s %s@%s '%s && echo %s'",
+		prefix, containerSshKeyFile, inventory.All.Vars.Ansible_port, inventory.All.Vars.Ansible_user, host.Ansible_host, check, sudoMarker)
+}
+
+// sudoFailure judges the outcome of the sudo stage: "" when the node let the
+// user become root, otherwise what to tell the operator. A command that exits
+// successfully without the marker never ran the check on the node, so it counts
+// as a failure, never as a pass.
+func sudoFailure(err error, output []byte, passwordSupplied bool) string {
+	if strings.Contains(string(output), sudoMarker) {
+		return ""
+	}
+
+	user := inventory.All.Vars.Ansible_user
+	if err != nil {
+		if passwordSupplied {
+			return "The node refused the sudo password for " + user + ": " + errorText(err, output)
+		}
+		return "The SSH user " + user + " is not root, and passwordless sudo failed: " + errorText(err, output) + ". Enter the sudo password."
+	}
+
+	return "The sudo check did not run: the node answered nothing - see the run log."
+}
+
+// sudoCheckFailure runs one node's sudo stage and answers with what to tell the
+// operator, or "" when the node let the SSH user become root.
+func sudoCheckFailure(host Host, passwordSupplied bool) (errMsg, rawOutput string) {
+	result := runCheckStage(hostName(host), stageSudo, sudoCommand(host, passwordSupplied))
+	return sudoFailure(result.err, result.output, passwordSupplied), string(result.output)
+}
+
 // diagnoseCommand is the read-only script that diagnoseKeyAuth runs on a node
 // over a password login. The node's shell is left to interpret it, and the
 // script ends in "true" so that a check finding nothing cannot look like a
@@ -262,7 +372,7 @@ func diagnoseKeyAuth(host Host) string {
 // checks that every node takes it for key-only login. An error means the check
 // could not be made at all, and the caller must not carry on as if it had
 // passed.
-func checkSshKey() (errorNodes []string, errorMsgs []string, err error) {
+func checkSshKey(sudoPassword string) (errorNodes []string, errorMsgs []string, err error) {
 	if sshKeyFile != sshKeyPath() {
 		err := copyFile(sshKeyFile, sshKeyPath(), 0600)
 		if err != nil {
@@ -275,6 +385,13 @@ func checkSshKey() (errorNodes []string, errorMsgs []string, err error) {
 	numHosts := len(inventory.All.Hosts)
 	if numHosts == 0 {
 		return nil, nil, errors.New("Can't check the SSH key: the inventory lists no nodes.")
+	}
+
+	// The sudo stage and the playbook read the password from this file. An
+	// empty password is not an error: the stage finds out whether the node
+	// needs one.
+	if err := prepareBecomePassword(sudoPassword); err != nil {
+		return nil, nil, errors.New("Can't check the SSH key: can't write the sudo password file: " + err.Error())
 	}
 
 	// One container carries the whole run, made before the checks fan out: a
@@ -307,6 +424,20 @@ func checkSshKey() (errorNodes []string, errorMsgs []string, err error) {
 					result.successful = false
 					result.errMsg = errMsg
 				}
+
+				// A node that takes the key can still refuse the escalation:
+				// the playbook runs --become, so a non-root user whose sudo
+				// wants a password has to be caught here, before the run.
+				if result.successful && !sshUserIsRoot() {
+					errMsg, rawOutput = sudoCheckFailure(host, sudoPassword != "")
+					recordCheck(hostname, stageSudo, rawOutput, errMsg == "")
+					if errMsg != "" {
+						result.successful = false
+						result.errMsg = errMsg
+						result.sudoFailure = true
+					}
+				}
+
 				resultCh <- result
 			}(hosts[j], resultCh)
 		}
@@ -523,6 +654,11 @@ func failureMessage(result hostResult) string {
 	if result.diagnosis != "" {
 		return diagnosisBlock(result.host, result.errMsg, result.diagnosis)
 	}
+	// A refused escalation says nothing about the SSH login, and the SSH
+	// verdicts would blame the wrong thing.
+	if result.sudoFailure {
+		return result.host + "\n" + result.errMsg
+	}
 	block := result.host
 	if verdict := failureVerdict(result.errMsg, result.passwordLogin); verdict != "" {
 		block += "\n" + verdict
@@ -672,6 +808,13 @@ func copySshKeyToNode(sshPassword string) (errorNodes []string, errorMsgs []stri
 		return nil, nil, errors.New("Can't set up key login: the inventory lists no nodes.")
 	}
 
+	// The password that copies the key is the same one sudo wants on a
+	// non-root user's node, so it is staged for the sudo stage and the
+	// playbook before the checks fan out.
+	if err := prepareBecomePassword(sshPassword); err != nil {
+		return nil, nil, errors.New("Can't set up key login: can't write the sudo password file: " + err.Error())
+	}
+
 	resultCh := make(chan hostResult)
 
 	groups := int(math.Ceil(float64(numHosts) / maxConcurrency))
@@ -724,6 +867,18 @@ func copySshKeyToNode(sshPassword string) (errorNodes []string, errorMsgs []stri
 				if errMsg != "" {
 					resultCh <- hostResult{host: hostname, errMsg: errMsg, diagnosis: diagnoseKeyAuth(host)}
 					return
+				}
+
+				// A node that takes the key can still refuse the escalation:
+				// the playbook runs --become, so a non-root user whose sudo
+				// wants a password has to be caught here, before the run.
+				if !sshUserIsRoot() {
+					errMsg, rawOutput = sudoCheckFailure(host, true)
+					recordCheck(hostname, stageSudo, rawOutput, errMsg == "")
+					if errMsg != "" {
+						resultCh <- hostResult{host: hostname, errMsg: errMsg, sudoFailure: true}
+						return
+					}
 				}
 
 				resultCh <- hostResult{host: hostname, successful: true}
@@ -877,10 +1032,16 @@ func initFlexDeployCluster() {
 		}
 	})
 
-	var sshPassword string
+	var sshPassword, sudoPassword string
 	if accessMethod == accessMethodsType.new {
+		// The password that copies the key is also the one sudo wants on a
+		// non-root user's node, so the operator types it once.
+		passwordLabel := "SSH Password: "
+		if !sshUserIsRoot() {
+			passwordLabel = "SSH / sudo Password: "
+		}
 		formUp.
-			AddPasswordField("SSH Password: ", "", 0, '*', func(text string) {
+			AddPasswordField(passwordLabel, "", 0, '*', func(text string) {
 				sshPassword = text
 			})
 	} else {
@@ -897,6 +1058,14 @@ func initFlexDeployCluster() {
 			}
 		})
 		formUp.AddFormItem(sshKey)
+
+		// An existing key comes with no password to reuse, so a non-root SSH
+		// user needs one typed here. Empty is allowed: sudo may not want one.
+		if !sshUserIsRoot() {
+			formUp.AddPasswordField("Sudo password (if needed): ", "", 0, '*', func(text string) {
+				sudoPassword = text
+			})
+		}
 	}
 
 	inventoryContentByte, err := yaml.Marshal(&inventory)
@@ -987,7 +1156,7 @@ func initFlexDeployCluster() {
 				ch <- true
 			}()
 
-			errorNodes, errorMsgs, err := checkSshKey()
+			errorNodes, errorMsgs, err := checkSshKey(sudoPassword)
 
 			// Wait until modal draw finish
 			<-ch

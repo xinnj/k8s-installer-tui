@@ -95,6 +95,10 @@ func initFlexSetupCluster(clean bool) {
 	abortButton.SetDisabled(true)
 
 	formDown.AddButton("Back", func() {
+		// The password file is left in place: the page is built and this button
+		// enabled before the run actually starts, so removing it here could
+		// pull the file out from under a run that is still preparing. The next
+		// Start stages it again, and a failed check or a quit removes it.
 		pages.SwitchToPage("Deploy Cluster")
 	})
 	backButton = formDown.GetButton(formDown.GetButtonIndex("Back"))
@@ -130,6 +134,20 @@ func initFlexSetupCluster(clean bool) {
 	go updateTimer(stopTimer)
 }
 
+// becomeExportLine is the line the generated script uses to hand the become
+// password to Ansible. Ansible reads a password file through
+// ANSIBLE_BECOME_PASSWORD_FILE, the default of --become-password-file: the
+// environment carries only the path, and Ansible strips the trailing newline
+// the file has. It is empty when no password was staged: the SSH user is root,
+// or passwordless sudo was enough.
+func becomeExportLine(passwordFileExists bool) string {
+	if !passwordFileExists {
+		return ""
+	}
+
+	return fmt.Sprintf("export ANSIBLE_BECOME_PASSWORD_FILE=%s", containerProjectFile(becomePasswordFileName))
+}
+
 func execCmd(view *tview.TextView) {
 	// hardening.yaml sits next to the binary and is mounted at
 	// /data/k8s-installer-tui in the container. Pass it last so its values win
@@ -141,6 +159,11 @@ func execCmd(view *tview.TextView) {
 	} else {
 		hardeningNotice = `echo "WARNING: hardening.yaml was not found next to the installer; continuing without the hardening profile." | tee -a "$log"`
 	}
+
+	// The sudo stage left the password in the project directory when the SSH
+	// user is not root and sudo wants one. Ansible reads it from there, so it
+	// never appears on a command line.
+	becomeExport := becomeExportLine(pathExists(becomePasswordPath()))
 
 	ansibleCommonParameters := "--become --ssh-extra-args='-o StrictHostKeyChecking=no' -i /data/idocluster/hosts.yaml " +
 		"--private-key=/data/idocluster/ansible-key -e @'/data/idocluster/extra-vars.yaml'" + hardeningParam
@@ -164,6 +187,7 @@ set -euao pipefail
 export parameters="%s"
 export log="/data/idocluster/%s"
 %s
+%s
 
 echo "====================Setup / Update a cluster====================" | tee -a "$log"
 
@@ -181,7 +205,7 @@ echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
 eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kubectl get node'" 2>&1 | tee -a "$log"
-`, ansibleCommonParameters, logFileName, hardeningNotice)
+`, ansibleCommonParameters, logFileName, becomeExport, hardeningNotice)
 	} else {
 		// Add node to existing cluster
 		var addedControlAndEtcdNodes, addedWorkNodes []string
@@ -248,6 +272,7 @@ set -euao pipefail
 export parameters="%s"
 export log="/data/idocluster/%s"
 %s
+%s
 
 echo "====================Add node to cluster====================" | tee -a "$log"
 
@@ -272,7 +297,7 @@ echo "====================Setup Finished====================" | tee -a "$log"
 echo | tee -a "$log"
 
 eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kubectl get node'" 2>&1 | tee -a "$log"
-`, ansibleCommonParameters, logFileName, hardeningNotice, cmdAddControlNode, cmdAddWorkNode)
+`, ansibleCommonParameters, logFileName, becomeExport, hardeningNotice, cmdAddControlNode, cmdAddWorkNode)
 	}
 
 	createCommandFile(cmdString)

@@ -193,9 +193,11 @@ func TestContainerCommandsParseAsBash(t *testing.T) {
 	host := Host{Ansible_host: "10.0.0.1"}
 
 	commands := map[string]string{
-		"key login": keyLoginCommand(host, "/data/idocluster/ansible-key"),
-		"copy key":  sshCopyIdCommand(host),
-		"diagnose":  diagnoseCommand(host),
+		"key login":             keyLoginCommand(host, "/data/idocluster/ansible-key"),
+		"copy key":              sshCopyIdCommand(host),
+		"diagnose":              diagnoseCommand(host),
+		"sudo without password": sudoCommand(host, false),
+		"sudo with password":    sudoCommand(host, true),
 	}
 	for name, cmd := range commands {
 		// The container's bash parses the command as it is written...
@@ -595,5 +597,306 @@ func TestCapLinesIgnoresTrailingNewline(t *testing.T) {
 
 	if truncated || text != "a\nb" {
 		t.Errorf("capLines = (%q, %v), want the two lines and no truncation", text, truncated)
+	}
+}
+
+func TestSudoCommandClearsTheSudoTimestamp(t *testing.T) {
+	originalUser, originalPort := inventory.All.Vars.Ansible_user, inventory.All.Vars.Ansible_port
+	inventory.All.Vars.Ansible_port = "22206"
+	inventory.All.Vars.Ansible_user = "yw"
+	defer func() { inventory.All.Vars.Ansible_user, inventory.All.Vars.Ansible_port = originalUser, originalPort }()
+
+	cmd := sudoCommand(Host{Ansible_host: "192.171.250.21"}, false)
+
+	for _, want := range []string{
+		"-i \"/data/idocluster/ansible-key\"",
+		"-o IdentitiesOnly=yes",
+		"-o BatchMode=yes",
+		"-o PreferredAuthentications=publickey",
+		"-p 22206",
+		"yw@192.171.250.21",
+		// A sudo timestamp cached by an earlier login would make a node
+		// without passwordless sudo look as if it had it.
+		"LC_ALL=C sudo -k -n true",
+		"echo " + sudoMarker,
+	} {
+		if !strings.Contains(cmd, want) {
+			t.Errorf("command %q does not contain %q", cmd, want)
+		}
+	}
+	if strings.Contains(cmd, "ansible-become-password") {
+		t.Errorf("command %q reads a password file, but no password was supplied", cmd)
+	}
+}
+
+func TestSudoCommandFeedsThePasswordFromTheFile(t *testing.T) {
+	originalUser, originalPort := inventory.All.Vars.Ansible_user, inventory.All.Vars.Ansible_port
+	inventory.All.Vars.Ansible_port = "22206"
+	inventory.All.Vars.Ansible_user = "yw"
+	defer func() { inventory.All.Vars.Ansible_user, inventory.All.Vars.Ansible_port = originalUser, originalPort }()
+
+	cmd := sudoCommand(Host{Ansible_host: "192.171.250.21"}, true)
+
+	// The password is piped into ssh, never put in an argument: an argument is
+	// visible in ps.
+	wantPipe := `cat "/data/idocluster/ansible-become-password" | ssh `
+	if !strings.Contains(cmd, wantPipe) {
+		t.Errorf("command %q does not pipe the password file into ssh", cmd)
+	}
+	if !strings.Contains(cmd, `sudo -k -S -p "" true`) {
+		t.Errorf("command %q does not let sudo read the password from stdin", cmd)
+	}
+	if strings.Contains(cmd, "sudo -k -n") {
+		t.Errorf("command %q still asks for passwordless sudo", cmd)
+	}
+}
+
+func TestSudoFailureNeedsTheNodesOwnAnswer(t *testing.T) {
+	originalUser := inventory.All.Vars.Ansible_user
+	inventory.All.Vars.Ansible_user = "yw"
+	defer func() { inventory.All.Vars.Ansible_user = originalUser }()
+
+	if errMsg := sudoFailure(nil, []byte(sudoMarker+"\n"), true); errMsg != "" {
+		t.Errorf("sudoFailure = %q, want no failure when the node confirmed the escalation", errMsg)
+	}
+
+	// A successful exit status with no marker means the command never ran the
+	// check on the node, and must not pass as working sudo.
+	if errMsg := sudoFailure(nil, nil, true); errMsg == "" {
+		t.Error("sudoFailure = \"\", want a failure when the node answered nothing")
+	}
+
+	errMsg := sudoFailure(errors.New("exit status 1"), []byte("sudo: 3 incorrect password attempts\n"), true)
+	if !strings.Contains(errMsg, "refused the sudo password") {
+		t.Errorf("sudoFailure = %q, want it to name the refused sudo password", errMsg)
+	}
+	if !strings.Contains(errMsg, "3 incorrect password attempts") {
+		t.Errorf("sudoFailure = %q, want the node's own sudo line", errMsg)
+	}
+
+	noPassword := sudoFailure(errors.New("exit status 1"), []byte("sudo: a password is required\n"), false)
+	if !strings.Contains(noPassword, "passwordless sudo failed") {
+		t.Errorf("sudoFailure = %q, want it to name the failed passwordless sudo", noPassword)
+	}
+	if !strings.Contains(noPassword, "Enter the sudo password") {
+		t.Errorf("sudoFailure = %q, want it to tell the operator to enter the sudo password", noPassword)
+	}
+}
+
+func TestWriteBecomePasswordKeepsAwkwardPasswords(t *testing.T) {
+	originalPath := projectPath
+	projectPath = t.TempDir()
+	defer func() { projectPath = originalPath }()
+
+	password := "$HOME `id` \"quoted\" 'single' \\backslash\\"
+
+	if err := writeBecomePassword(password); err != nil {
+		t.Fatalf("writeBecomePassword: %v", err)
+	}
+
+	data, err := os.ReadFile(becomePasswordPath())
+	if err != nil {
+		t.Fatalf("reading back the password file: %v", err)
+	}
+	if string(data) != password+"\n" {
+		t.Errorf("password file = %q, want %q", data, password+"\n")
+	}
+
+	info, err := os.Stat(becomePasswordPath())
+	if err != nil {
+		t.Fatalf("stat of the password file: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("password file mode = %v, want 0600", perm)
+	}
+}
+
+func TestRemoveBecomePasswordDeletesTheFile(t *testing.T) {
+	originalPath := projectPath
+	projectPath = t.TempDir()
+	defer func() { projectPath = originalPath }()
+
+	if err := writeBecomePassword("s3cret"); err != nil {
+		t.Fatalf("writeBecomePassword: %v", err)
+	}
+
+	removeBecomePassword()
+
+	if _, err := os.Stat(becomePasswordPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("stat after remove = %v, want the password file to be gone", err)
+	}
+}
+
+func TestCopySshKeyToNodeStopsWhenTheSudoPasswordCannotBeWritten(t *testing.T) {
+	originalHosts, originalPath, originalUser := inventory.All.Hosts, projectPath, inventory.All.Vars.Ansible_user
+	inventory.All.Hosts = map[string]Host{"node1": {Ansible_host: "10.0.0.1"}}
+	inventory.All.Vars.Ansible_user = "yw"
+	projectPath = t.TempDir()
+	defer func() {
+		inventory.All.Hosts, projectPath, inventory.All.Vars.Ansible_user = originalHosts, originalPath, originalUser
+	}()
+
+	// An existing deployment key keeps the copy from generating one, which
+	// would need the container runtime.
+	if err := os.WriteFile(sshKeyPath(), []byte("key"), 0600); err != nil {
+		t.Fatalf("writing the key file: %v", err)
+	}
+	// A non-empty directory where the become password file has to go: writing
+	// it cannot work, and the copy has to stop before it reaches the container.
+	if err := os.Mkdir(becomePasswordPath(), 0700); err != nil {
+		t.Fatalf("making the become password path unwritable: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(becomePasswordPath(), "keep"), []byte("x"), 0600); err != nil {
+		t.Fatalf("filling the become password path: %v", err)
+	}
+
+	_, _, err := copySshKeyToNode("s3cret")
+
+	if err == nil {
+		t.Error("copySshKeyToNode = nil error, want it to stop when the sudo password file cannot be written")
+	}
+}
+
+func TestCheckSshKeyStopsWhenTheSudoPasswordCannotBeWritten(t *testing.T) {
+	originalHosts, originalPath, originalUser, originalKey := inventory.All.Hosts, projectPath, inventory.All.Vars.Ansible_user, sshKeyFile
+	inventory.All.Hosts = map[string]Host{"node1": {Ansible_host: "10.0.0.1"}}
+	inventory.All.Vars.Ansible_user = "yw"
+	projectPath = t.TempDir()
+	sshKeyFile = sshKeyPath()
+	defer func() {
+		inventory.All.Hosts, projectPath, inventory.All.Vars.Ansible_user, sshKeyFile = originalHosts, originalPath, originalUser, originalKey
+	}()
+
+	if err := os.Mkdir(becomePasswordPath(), 0700); err != nil {
+		t.Fatalf("making the become password path unwritable: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(becomePasswordPath(), "keep"), []byte("x"), 0600); err != nil {
+		t.Fatalf("filling the become password path: %v", err)
+	}
+
+	_, _, err := checkSshKey("s3cret")
+
+	if err == nil {
+		t.Error("checkSshKey = nil error, want it to stop when the sudo password file cannot be written")
+	}
+}
+
+func TestPrepareBecomePasswordStagesOnlyForANonRootUserWithAPassword(t *testing.T) {
+	originalPath, originalUser := projectPath, inventory.All.Vars.Ansible_user
+	projectPath = t.TempDir()
+	defer func() { projectPath, inventory.All.Vars.Ansible_user = originalPath, originalUser }()
+
+	cases := []struct {
+		name     string
+		user     string
+		password string
+		wantFile bool
+	}{
+		{name: "root needs none", user: "root", password: "s3cret"},
+		{name: "empty password removes the file", user: "yw", password: ""},
+		{name: "non-root with a password stages it", user: "yw", password: "s3cret", wantFile: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			inventory.All.Vars.Ansible_user = tc.user
+			// A stale file from an earlier attempt must not survive a case
+			// that needs none.
+			if err := os.WriteFile(becomePasswordPath(), []byte("stale\n"), 0600); err != nil {
+				t.Fatalf("writing the stale file: %v", err)
+			}
+
+			if err := prepareBecomePassword(tc.password); err != nil {
+				t.Fatalf("prepareBecomePassword: %v", err)
+			}
+
+			data, err := os.ReadFile(becomePasswordPath())
+			if !tc.wantFile {
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("password file = %q (err %v), want it removed", data, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("reading the password file: %v", err)
+			}
+			if string(data) != tc.password+"\n" {
+				t.Errorf("password file = %q, want %q", data, tc.password+"\n")
+			}
+		})
+	}
+}
+
+func TestWriteBecomePasswordReplacesWhatIsAtThePath(t *testing.T) {
+	originalPath := projectPath
+	projectPath = t.TempDir()
+	defer func() { projectPath = originalPath }()
+
+	// A symlink at the password path must be replaced, not followed: the app
+	// runs as root, and the project directory belongs to the invoking user.
+	target := filepath.Join(projectPath, "target")
+	if err := os.WriteFile(target, []byte("untouched"), 0644); err != nil {
+		t.Fatalf("writing the target file: %v", err)
+	}
+	if err := os.Symlink(target, becomePasswordPath()); err != nil {
+		t.Fatalf("planting the symlink: %v", err)
+	}
+
+	if err := writeBecomePassword("s3cret"); err != nil {
+		t.Fatalf("writeBecomePassword: %v", err)
+	}
+
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("reading the target file: %v", err)
+	}
+	if string(data) != "untouched" {
+		t.Errorf("target file = %q, want it untouched: the write followed the link", data)
+	}
+
+	info, err := os.Lstat(becomePasswordPath())
+	if err != nil {
+		t.Fatalf("lstat of the password file: %v", err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Errorf("password path mode = %v, want a regular file", info.Mode())
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("password file mode = %v, want 0600", perm)
+	}
+}
+
+func TestCopySshKeyToNodeKeepsTheSudoPasswordWhenTheCheckFails(t *testing.T) {
+	originalHosts, originalPath, originalUser := inventory.All.Hosts, projectPath, inventory.All.Vars.Ansible_user
+	inventory.All.Hosts = map[string]Host{"node1": {Ansible_host: "10.0.0.1"}}
+	inventory.All.Vars.Ansible_user = "yw"
+	projectPath = t.TempDir()
+	defer func() {
+		inventory.All.Hosts, projectPath, inventory.All.Vars.Ansible_user = originalHosts, originalPath, originalUser
+	}()
+
+	// An existing deployment key keeps the copy from generating one, which
+	// would need the container runtime.
+	if err := os.WriteFile(sshKeyPath(), []byte("key"), 0600); err != nil {
+		t.Fatalf("writing the key file: %v", err)
+	}
+	// The copy fails before it reaches a container: the SSH password file
+	// cannot be written.
+	if err := os.Mkdir(sshPasswordPath(), 0700); err != nil {
+		t.Fatalf("making the SSH password path unwritable: %v", err)
+	}
+
+	if _, _, err := copySshKeyToNode("s3cret"); err == nil {
+		t.Fatal("copySshKeyToNode = nil error, want a failure")
+	}
+
+	// The file is kept for ad-hoc ansible after the wizard is done with it,
+	// whether or not the check passed.
+	data, err := os.ReadFile(becomePasswordPath())
+	if err != nil {
+		t.Fatalf("the sudo password file was removed after a failed check: %v", err)
+	}
+	if string(data) != "s3cret\n" {
+		t.Errorf("password file = %q, want the staged password", data)
 	}
 }
