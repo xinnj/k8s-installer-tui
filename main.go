@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -232,6 +233,21 @@ func readConfig() {
 }
 
 func main() {
+	opts, err := parseOptions(os.Args[1:])
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			printUsage(os.Stdout)
+			return
+		}
+		fmt.Fprintln(os.Stderr, "k8s-installer-tui:", err)
+		fmt.Fprintln(os.Stderr, "Run 'k8s-installer-tui --help' for usage.")
+		os.Exit(2)
+	}
+	if opts.showVersion {
+		fmt.Println(versionString())
+		return
+	}
+
 	checkPrivilege()
 
 	ex, err := os.Executable()

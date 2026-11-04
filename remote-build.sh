@@ -12,6 +12,10 @@ set -e  # Exit on error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/.env.local"
 
+# The remote copy excludes .git, so resolve the version locally and inject it
+# into the binary with -ldflags. VERSION from .env.local takes precedence.
+VERSION="${VERSION:-$(git -C "${SCRIPT_DIR}" describe --tags --always --dirty 2>/dev/null || echo dev)}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -59,7 +63,7 @@ step2_build() {
 
     ssh ${SSH_OPTS} \
         "${REMOTE_USER}@${REMOTE_HOST}" \
-        "source .profile && cd ${REMOTE_PATH} && CGO_ENABLED=0 go build -o k8s-installer-tui ."
+        "source .profile && cd ${REMOTE_PATH} && CGO_ENABLED=0 go build -ldflags '-X main.version=${VERSION}' -o k8s-installer-tui ."
 
     echo_info "Go build completed successfully!"
 }
