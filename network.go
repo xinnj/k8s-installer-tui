@@ -109,7 +109,7 @@ func initFlexNetwork() {
 			return
 		}
 
-		if checkConflicts {
+		if networkConflictCheckEnabled() {
 			ch := make(chan bool)
 			go func() {
 				modalCheckIp := tview.NewModal().SetText("Checking IP conflicts...")
@@ -180,4 +180,10 @@ func initFlexNetwork() {
 		}
 		return event
 	})
+}
+
+// networkConflictCheckEnabled records the checkbox in a --create config without
+// contacting any address; the operator only wants the value written down.
+func networkConflictCheckEnabled() bool {
+	return checkConflicts && !createMode
 }

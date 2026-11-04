@@ -30,16 +30,16 @@ type installConfig struct {
 	HA             installHA      `yaml:"ha"`
 	Network        installNetwork `yaml:"network"`
 	Mirror         installMirror  `yaml:"mirror"`
-	Features       map[string]any `yaml:"features"`
-	ExtraVars      map[string]any `yaml:"extra_vars"`
+	Features       map[string]any `yaml:"features,omitempty"`
+	ExtraVars      map[string]any `yaml:"extra_vars,omitempty"`
 }
 
 type installSSH struct {
 	User         string `yaml:"user"`
 	Port         int    `yaml:"port"`
-	Password     string `yaml:"password"`
-	KeyFile      string `yaml:"key_file"`
-	SudoPassword string `yaml:"sudo_password"`
+	Password     string `yaml:"password,omitempty"`
+	KeyFile      string `yaml:"key_file,omitempty"`
+	SudoPassword string `yaml:"sudo_password,omitempty"`
 }
 
 // installHosts holds either the bare IP/range/access-pair form or the detailed
@@ -52,29 +52,29 @@ type installHosts struct {
 type installHost struct {
 	Name        string            `yaml:"name"`
 	IP          string            `yaml:"ip"`
-	AccessIP    string            `yaml:"access_ip"`
-	AnsibleHost string            `yaml:"ansible_host"`
+	AccessIP    string            `yaml:"access_ip,omitempty"`
+	AnsibleHost string            `yaml:"ansible_host,omitempty"`
 	Roles       []string          `yaml:"roles"`
-	Labels      map[string]string `yaml:"labels"`
-	Taints      []string          `yaml:"taints"`
+	Labels      map[string]string `yaml:"labels,omitempty"`
+	Taints      []string          `yaml:"taints,omitempty"`
 }
 
 type installHA struct {
 	Mode string `yaml:"mode"`
-	VIP  string `yaml:"vip"`
+	VIP  string `yaml:"vip,omitempty"`
 }
 
 type installNetwork struct {
 	Plugin          string `yaml:"plugin"`
-	CalicoVxlanMode string `yaml:"calico_vxlan_mode"`
-	ServiceCIDR     string `yaml:"service_cidr"`
-	PodCIDR         string `yaml:"pod_cidr"`
+	CalicoVxlanMode string `yaml:"calico_vxlan_mode,omitempty"`
+	ServiceCIDR     string `yaml:"service_cidr,omitempty"`
+	PodCIDR         string `yaml:"pod_cidr,omitempty"`
 	CheckConflicts  *bool  `yaml:"check_conflicts"`
 }
 
 type installMirror struct {
 	Enabled bool              `yaml:"enabled"`
-	URLs    map[string]string `yaml:"urls"`
+	URLs    map[string]string `yaml:"urls,omitempty"`
 }
 
 const (
@@ -124,6 +124,17 @@ func (h *installHosts) UnmarshalYAML(node *yaml.Node) error {
 	default:
 		return errors.New("hosts entries must be IP/range strings or host objects")
 	}
+}
+
+// MarshalYAML writes the same two shapes UnmarshalYAML accepts. Without it,
+// yaml.Marshal would emit the struct's auto/detailed fields as a mapping, which
+// the loader then rejects.
+func (h installHosts) MarshalYAML() (any, error) {
+	if len(h.Auto) > 0 {
+		return h.Auto, nil
+	}
+
+	return h.Detailed, nil
 }
 
 func parseInstallConfig(data []byte) (*installConfig, error) {

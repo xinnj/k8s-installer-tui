@@ -32,6 +32,7 @@ Setup Cluster ←── Deploy Cluster ←── Mirror ←───────
 
 - **New cluster path**: Steps through all pages sequentially.
 - **Add nodes path**: Setup Mode → Project (Load) → Edit Hosts → Deploy Cluster → Setup Cluster.
+- **Create-config path (`--create`)**: Setup Mode (Add Nodes disabled) → Project → Edit Hosts → Features → HA Mode → Network → Mirror → Save Config. Deploy and Setup are not reached.
 
 Each page is a `tview.Flex` registered in `main.go:pages.AddPage()`. Navigation uses `pages.SwitchToPage()`. Every page follows the same pattern: a content area on top, a `formDown` button bar (Back/Next/Quit) on bottom.
 
@@ -39,10 +40,12 @@ Each page is a `tview.Flex` registered in `main.go:pages.AddPage()`. Navigation 
 
 | File | Responsibility |
 |---|---|
-| `main.go` | Entry point, config loading (`config.yaml`), dependency install (podman + kubespray-runtime image), page registration, Ctrl+C handler, `--config` dispatch |
-| `installConfig.go` | `--config` YAML schema, both `hosts` shapes, defaults, validation |
+| `main.go` | Entry point, config loading (`config.yaml`), dependency install (podman + kubespray-runtime image), page registration, Ctrl+C handler, `--config`/`--create` dispatch |
+| `installConfig.go` | `--config` YAML schema, both `hosts` shapes, defaults, validation, `MarshalYAML` for generated files |
 | `installPlan.go` | Pure planners: detailed-host inventory, extra-vars precedence, mirror rendering, sampled CIDR IPs |
 | `configRun.go` | Headless setup for a config run: project preparation, conflict check, SSH staging, page prefill, auto-run exit/cleanup |
+| `createConfig.go` | Pure `--create` exporter: inventory→detailed hosts, features/extra-vars classification, atomic 0600 YAML writer |
+| `saveConfig.go` | `--create` final page: output path, SSH password or existing key, build/validate/write, overwrite confirmation |
 | `setupMode.go` | Initial screen: "Create / Update Cluster" vs "Add Nodes To Cluster" |
 | `project.go` | `Inventory` struct, project path management, load/save/populate inventory YAML, invokes `inventory_builder/inventory.py` to assign roles |
 | `hosts.go` | Host list with add/remove, role auto-assignment for new hosts |
@@ -74,6 +77,32 @@ view's `app.Draw()` blocks until the event loop exists. `execCmd` records the
 exit code, removes the container/password files, and exits 0/1 in auto-run. The
 Deploy page reads `prefillSSHPassword`/`prefillSudoPassword` and the `dryRun`
 global (`deployCluster.go`). Config errors exit 2 before the wizard opens.
+
+### Create mode (`--create`)
+
+`k8s-installer-tui --create [-c out.yaml]` walks the wizard and writes an
+install config for `--config`. In this mode `-c/--config` is the *output* path
+(default `install.yaml`); it is dispatched before the `--config` branch in
+`main.go`, so the file is never loaded. `createMode` is set before `initPages`
+because Setup Mode disables its Add Nodes button. The preflight still runs:
+creating a project runs `inventory.py` in the container, and loading copies the
+sample inventory and reads the existing files.
+
+The flow ends at Save Config instead of Deploy. `mirrorNextPage()` chooses the
+destination; `networkConflictCheckEnabled()` keeps the Network checkbox's value
+for the file but skips the sampled pings. No SSH function, key copy, or
+playbook is called.
+
+`buildInstallConfig` (`createConfig.go`) turns the live globals into the same
+schema `--config` reads, then runs `applyDefaults` + `validate` before writing.
+Hosts become detailed objects sorted by name with roles from group membership.
+Features are every key in `configurableVarTypes`; `extra_vars` keeps the
+remainder after removing feature, network, HA (`applyHaMode`), mirror, and
+unchanged `Default_vars` keys — `extra_vars` is merged last, so a leaked key
+would override its structured section. The writer uses a temp file in the
+destination directory, mode 0600, and an atomic rename. `MarshalYAML` on
+`installHosts` emits either the bare or detailed shape, never the struct's
+`auto`/`detailed` fields.
 
 ### Container execution model
 

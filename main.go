@@ -70,6 +70,9 @@ var flexFeatures = tview.NewFlex()
 var flexHaMode = tview.NewFlex()
 var flexNetwork = tview.NewFlex()
 var flexMirror = tview.NewFlex()
+var flexSaveConfig = tview.NewFlex()
+var createMode bool
+var createConfigPath string
 var flexDeployCluster = tview.NewFlex()
 var logFileName string
 var flexSetupCluster = tview.NewFlex()
@@ -277,6 +280,7 @@ func initPages() {
 	pages.AddPage("HA Mode", flexHaMode, true, false)
 	pages.AddPage("Network", flexNetwork, true, false)
 	pages.AddPage("Mirror", flexMirror, true, false)
+	pages.AddPage("Save Config", flexSaveConfig, true, false)
 	pages.AddPage("Deploy Cluster", flexDeployCluster, true, false)
 	pages.AddPage("Setup Cluster", flexSetupCluster, true, false)
 }
@@ -315,6 +319,21 @@ func main() {
 	if err := setAppPath(); err != nil {
 		fmt.Fprintln(os.Stderr, "k8s-installer-tui:", err)
 		os.Exit(1)
+	}
+
+	if opts.create {
+		if err := readAppConfig(filepath.Join(appPath, "config.yaml")); err != nil {
+			fmt.Fprintln(os.Stderr, "k8s-installer-tui: config:", err)
+			os.Exit(2)
+		}
+
+		// Set the mode before initPages: the Setup Mode page is built from it.
+		createMode = true
+		createConfigPath = opts.configPath
+		preflightHost()
+		initPages()
+		runApp()
+		return
 	}
 
 	if opts.configPath != "" {

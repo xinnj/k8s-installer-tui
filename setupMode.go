@@ -11,6 +11,10 @@ func initFlexSetupMode() {
 	formSetupMode.SetBorder(true)
 
 	formSetupMode.AddButton("Create / Update Cluster", func() {
+		if createMode {
+			// A new --create walk starts from a clean Save Config page.
+			resetSaveConfigState()
+		}
 		setupNewCluster = true
 		flexProject.Clear()
 		initFlexProject()
@@ -18,6 +22,9 @@ func initFlexSetupMode() {
 	})
 
 	formSetupMode.AddButton("Add Nodes To Cluster", func() {
+		if createMode {
+			return
+		}
 		setupNewCluster = false
 		flexProject.Clear()
 		initFlexProject()
@@ -27,6 +34,12 @@ func initFlexSetupMode() {
 	formSetupMode.AddButton("Quit", func() {
 		showQuitModal()
 	})
+
+	if createMode {
+		if index := formSetupMode.GetButtonIndex("Add Nodes To Cluster"); index >= 0 {
+			formSetupMode.GetButton(index).SetDisabled(true)
+		}
+	}
 
 	formSetupMode.SetButtonsAlign(tview.AlignCenter)
 

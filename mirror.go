@@ -45,10 +45,11 @@ func initFlexMirror() {
 				}
 			}
 
-			// Load values from inventory file
-			for k, v := range mirrors {
-				if extraVars[k] != nil {
-					mirrors[k] = v
+			// Load values from the project, keeping the defaults for keys it
+			// does not override.
+			for k := range mirrors {
+				if value, ok := extraVars[k].(string); ok {
+					mirrors[k] = value
 				}
 			}
 		}
@@ -83,9 +84,16 @@ func initFlexMirror() {
 		}
 
 		saveInventory()
-		flexDeployCluster.Clear()
-		initFlexDeployCluster()
-		pages.SwitchToPage("Deploy Cluster")
+
+		next := mirrorNextPage()
+		if next == "Save Config" {
+			flexSaveConfig.Clear()
+			initFlexSaveConfig()
+		} else {
+			flexDeployCluster.Clear()
+			initFlexDeployCluster()
+		}
+		pages.SwitchToPage(next)
 	})
 
 	formDown.AddButton("Back", func() {
@@ -117,4 +125,14 @@ func initFlexMirror() {
 		}
 		return event
 	})
+}
+
+// mirrorNextPage picks the page after the mirror settings. A --create run ends
+// by writing the config; a normal run reviews and deploys it.
+func mirrorNextPage() string {
+	if createMode {
+		return "Save Config"
+	}
+
+	return "Deploy Cluster"
 }

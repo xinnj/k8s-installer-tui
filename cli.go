@@ -7,10 +7,13 @@ import (
 	"strings"
 )
 
+const defaultCreateConfigPath = "install.yaml"
+
 type cliOptions struct {
 	showVersion bool
 	configPath  string
 	dryRun      bool
+	create      bool
 }
 
 // parseOptions parses the command line in isolation from the global flag set so
@@ -26,6 +29,7 @@ func parseOptions(args []string) (cliOptions, error) {
 	fs.StringVar(&opts.configPath, "config", "", "load installation answers from this file and run without prompts")
 	fs.StringVar(&opts.configPath, "c", "", "load installation answers from this file and run without prompts (shorthand)")
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "with --config, fill the wizard and stop before installing")
+	fs.BoolVar(&opts.create, "create", false, "walk the wizard and write an installation config file")
 
 	if err := fs.Parse(args); err != nil {
 		return cliOptions{}, err // includes flag.ErrHelp for -h/--help
@@ -42,8 +46,14 @@ func parseOptions(args []string) (cliOptions, error) {
 	if configSet && opts.configPath == "" {
 		return cliOptions{}, fmt.Errorf("--config requires a non-empty file")
 	}
+	if opts.create && opts.dryRun {
+		return cliOptions{}, fmt.Errorf("--create cannot be combined with --dry-run")
+	}
 	if opts.dryRun && opts.configPath == "" {
 		return cliOptions{}, fmt.Errorf("--dry-run requires --config")
+	}
+	if opts.create && opts.configPath == "" {
+		opts.configPath = defaultCreateConfigPath
 	}
 
 	return opts, nil
@@ -53,8 +63,13 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, `Usage: k8s-installer-tui [options]
 
 Options:
-  -c, --config FILE  Load installation answers from FILE, fill the wizard, and
-                     run the installation without prompts.
+  -c, --config FILE  With --create, write the generated config to FILE
+                     (default install.yaml). Otherwise, load installation
+                     answers from FILE, fill the wizard, and run the
+                     installation without prompts.
+      --create       Walk the wizard step by step and write an install config
+                     that --config can run. IP conflict pings, SSH key
+                     generation/copy, and the installation are skipped.
       --dry-run      With --config, fill the wizard and stop on the Deploy page
                      without copying keys or running Ansible.
   -v, --version      Print version information and exit.

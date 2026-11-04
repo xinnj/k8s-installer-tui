@@ -6,6 +6,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +28,13 @@ func TestParseOptions(t *testing.T) {
 		{name: "config without value", args: []string{"--config"}, wantErr: true},
 		{name: "empty config", args: []string{"--config="}, wantErr: true},
 		{name: "empty short config", args: []string{"-c", ""}, wantErr: true},
+		{name: "create default output", args: []string{"--create"}, want: cliOptions{create: true, configPath: "install.yaml"}},
+		{name: "create short output", args: []string{"--create", "-c", "out.yaml"}, want: cliOptions{create: true, configPath: "out.yaml"}},
+		{name: "create long output", args: []string{"--create", "--config", "out.yaml"}, want: cliOptions{create: true, configPath: "out.yaml"}},
+		{name: "create equals output", args: []string{"--create", "--config=out.yaml"}, want: cliOptions{create: true, configPath: "out.yaml"}},
+		{name: "create empty output", args: []string{"--create", "--config="}, wantErr: true},
+		{name: "create dry run", args: []string{"--create", "--dry-run"}, wantErr: true},
+		{name: "create dry run with output", args: []string{"--create", "-c", "out.yaml", "--dry-run"}, wantErr: true},
 		{name: "unknown flag", args: []string{"--nope"}, wantErr: true},
 		{name: "positional argument", args: []string{"extra"}, wantErr: true},
 	}
@@ -47,6 +55,21 @@ func TestParseOptions(t *testing.T) {
 				t.Fatalf("parseOptions(%v) = %+v, want %+v", tt.args, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseOptionsCreateRejectsDryRun(t *testing.T) {
+	for _, args := range [][]string{
+		{"--create", "--dry-run"},
+		{"--create", "-c", "out.yaml", "--dry-run"},
+	} {
+		_, err := parseOptions(args)
+		if err == nil {
+			t.Fatalf("parseOptions(%v) accepted --dry-run with --create", args)
+		}
+		if !strings.Contains(err.Error(), "--create") {
+			t.Fatalf("parseOptions(%v) error = %q, want it to mention --create", args, err)
+		}
 	}
 }
 

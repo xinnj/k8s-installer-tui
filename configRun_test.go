@@ -31,6 +31,12 @@ func snapshotInstallGlobals(t *testing.T) {
 	oldDry, oldConfigRun, oldAuto := dryRun, configRun, autoRun
 	oldExitCode := autoRunExitCode.Load()
 	oldAppConfig := appConfig
+	oldCreateMode, oldCreatePath := createMode, createConfigPath
+	oldSaveInit := saveConfigInitialized
+	oldSavePath, oldSaveUser, oldSavePort := saveConfigPath, saveSSHUser, saveSSHPort
+	oldSaveUserPrefill, oldSavePortPrefill := saveSSHUserPrefill, saveSSHPortPrefill
+	oldSaveMethod, oldSavePass := saveAccessMethod, saveSSHPassword
+	oldSaveKey, oldSaveSudo := saveSSHKeyFile, saveSudoPassword
 
 	t.Cleanup(func() {
 		homePath, appPath, kubesprayPath = oldHome, oldApp, oldKubespray
@@ -47,6 +53,13 @@ func snapshotInstallGlobals(t *testing.T) {
 		dryRun, configRun, autoRun = oldDry, oldConfigRun, oldAuto
 		autoRunExitCode.Store(oldExitCode)
 		appConfig = oldAppConfig
+		createMode, createConfigPath = oldCreateMode, oldCreatePath
+		saveConfigInitialized = oldSaveInit
+		saveConfigPath, saveSSHUser, saveSSHPort = oldSavePath, oldSaveUser, oldSavePort
+		saveSSHUserPrefill, saveSSHPortPrefill = oldSaveUserPrefill, oldSavePortPrefill
+		saveAccessMethod, saveSSHPassword = oldSaveMethod, oldSavePass
+		saveSSHKeyFile, saveSudoPassword = oldSaveKey, oldSaveSudo
+		flexSaveConfig.Clear()
 	})
 }
 

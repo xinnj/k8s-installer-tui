@@ -80,6 +80,11 @@ func initFlexProject() {
 				return
 			}
 
+			// The Save Config page belongs to the project that was just chosen.
+			if createMode {
+				resetSaveConfigState()
+			}
+
 			formNewProject.Clear(true)
 			initFormNewProject()
 			pages.SwitchToPage("New Project")
@@ -98,6 +103,11 @@ func initFlexProject() {
 		err := loadInventory()
 		if err != nil {
 			return
+		}
+
+		// Do not reuse the previous project's Save Config prefill.
+		if createMode {
+			resetSaveConfigState()
 		}
 
 		flexEditHosts.Clear()

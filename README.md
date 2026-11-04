@@ -13,6 +13,7 @@ To setup a k8s cluster with terminal UI. Thanks to these two amazing projects:
 - Config service & pod CIDR, and perform potential IP conflicts checking (sampled)
 - Enable public download mirror to accelerate download speed in China
 - Auto create SSH key and copy to each node
+- Generate a reusable installation config from the wizard with `--create`
 - Support offline install
   - Execute the commands below to prepare the materials for offline install.
     ```shell
@@ -65,6 +66,41 @@ failure, `2` usage or config error, `130` SIGTERM.
 Current limits: IPv4 only; one `ssh.user` for all hosts; an existing key file
 cannot have a passphrase; `extra_vars` is merged last and bypasses config
 validation.
+
+# Generate a config from the wizard (--create)
+The wizard can also write the installation file used by `--config`:
+
+```shell
+./k8s-installer-tui --create                     # writes ./install.yaml
+./k8s-installer-tui --create -c cluster.yaml     # writes cluster.yaml
+```
+
+It walks the same pages (Setup Mode → Project → Edit Hosts → Features → HA
+Mode → Network → Mirror) and ends on **Save Config**. The Add Nodes entry is
+disabled; `--create` writes a new-cluster file. The Network page's conflict
+checkbox is recorded as `network.check_conflicts`, but no sampled ping runs.
+No SSH key is generated or copied, no node is contacted, and no playbook runs.
+
+The Save Config page records either an SSH password or an existing key file
+(plus a sudo password for a non-root user) and writes detailed hosts with their
+exact roles, labels, and taints. The file is written with mode `0600`, and an
+existing file is only replaced after confirmation. `-c/--config` names the
+output file in this mode, defaulting to `install.yaml`; the page can edit it.
+
+`--create` still runs the preflight (root or passwordless sudo, Podman, the
+Kubespray archive) because creating or loading a project uses the container.
+`--create --dry-run` is rejected because nothing is installed. Exit codes: `0`
+after a successful write or a quit, `2` for a usage or `config.yaml` error.
+
+The generated file can be reviewed and run with:
+
+```shell
+./k8s-installer-tui --config install.yaml --dry-run
+./k8s-installer-tui --config install.yaml
+```
+
+`--create` always writes the detailed host shape; arbitrary `extra_vars` are
+not editable in this flow (use the Features page or edit the file afterward).
 
 # Usage
 ## Select setup mode

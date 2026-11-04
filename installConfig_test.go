@@ -401,6 +401,101 @@ func TestInstallExampleConfigIsValid(t *testing.T) {
 	}
 }
 
+func TestInstallHostsMarshalYAML(t *testing.T) {
+	check := false
+
+	t.Run("detailed hosts form a sequence", func(t *testing.T) {
+		cfg := installConfig{
+			Version:        1,
+			ProjectPath:    "/tmp/project",
+			HostnamePrefix: "node",
+			SSH:            installSSH{User: "root", Port: 22, Password: "secret"},
+			Hosts: installHosts{Detailed: []installHost{
+				{
+					Name:        "node1",
+					IP:          "10.0.0.11",
+					AccessIP:    "10.0.0.11",
+					AnsibleHost: "10.0.0.11",
+					Roles:       []string{roleControlPlane, roleEtcd},
+				},
+			}},
+			HA:      installHA{Mode: "localhost"},
+			Network: installNetwork{Plugin: "flannel", CheckConflicts: &check},
+		}
+
+		data, err := yaml.Marshal(&cfg)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		if strings.Contains(string(data), "auto:") || strings.Contains(string(data), "detailed:") {
+			t.Fatalf("marshaled hosts are a mapping, want a sequence:\n%s", data)
+		}
+
+		parsed, err := parseInstallConfig(data)
+		if err != nil {
+			t.Fatalf("parse marshaled config: %v\n%s", err, data)
+		}
+		if len(parsed.Hosts.Detailed) != 1 {
+			t.Fatalf("detailed hosts = %d, want 1\n%s", len(parsed.Hosts.Detailed), data)
+		}
+		if got := parsed.Hosts.Detailed[0]; got.Name != "node1" || strings.Join(got.Roles, ",") != "kube_control_plane,etcd" {
+			t.Fatalf("host = %+v, want node1 with control-plane and etcd", got)
+		}
+		if parsed.Network.CheckConflicts == nil || *parsed.Network.CheckConflicts {
+			t.Fatalf("check_conflicts = %v, want an explicit false", parsed.Network.CheckConflicts)
+		}
+	})
+
+	t.Run("bare hosts form a sequence", func(t *testing.T) {
+		cfg := installConfig{
+			Version: 1,
+			SSH:     installSSH{User: "root", Port: 22, Password: "secret"},
+			Hosts:   installHosts{Auto: []string{"10.0.0.11"}},
+		}
+
+		data, err := yaml.Marshal(&cfg)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		parsed, err := parseInstallConfig(data)
+		if err != nil {
+			t.Fatalf("parse marshaled config: %v\n%s", err, data)
+		}
+		if len(parsed.Hosts.Auto) != 1 || parsed.Hosts.Auto[0] != "10.0.0.11" {
+			t.Fatalf("auto hosts = %v, want [10.0.0.11]", parsed.Hosts.Auto)
+		}
+	})
+}
+
+func TestInstallConfigMarshalOmitsEmptyOptionalFields(t *testing.T) {
+	check := true
+	cfg := installConfig{
+		Version:        1,
+		ProjectPath:    "/tmp/project",
+		HostnamePrefix: "node",
+		SSH:            installSSH{User: "root", Port: 22, Password: "secret"},
+		Hosts: installHosts{Detailed: []installHost{
+			{Name: "node1", IP: "10.0.0.11", Roles: []string{roleNode}},
+		}},
+		HA:      installHA{Mode: "localhost"},
+		Network: installNetwork{Plugin: "flannel", CheckConflicts: &check},
+	}
+
+	data, err := yaml.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	for _, field := range []string{"key_file:", "sudo_password:", "vip:", "calico_vxlan_mode:", "urls:", "labels:", "taints:", "access_ip:", "ansible_host:"} {
+		if strings.Contains(string(data), field) {
+			t.Errorf("marshaled config contains empty optional field %q:\n%s", field, data)
+		}
+	}
+	if !strings.Contains(string(data), "check_conflicts: true") {
+		t.Errorf("marshaled config lost check_conflicts:\n%s", data)
+	}
+}
+
 func TestLoadInstallConfigRejectsMultipleDocuments(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
