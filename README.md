@@ -27,6 +27,45 @@ To setup a k8s cluster with terminal UI. Thanks to these two amazing projects:
 # Installation
 Download the release package, unpack it on a linux host and execute "k8s-installer-tui" with root privilege.
 
+# Config-driven (unattended) installation
+Instead of stepping through the wizard, one YAML file can fill it and start the
+installation:
+
+```shell
+./k8s-installer-tui --config cluster.yaml
+./k8s-installer-tui --config cluster.yaml --dry-run
+```
+
+`--dry-run` runs the same validation, project generation, and IP-conflict check,
+then opens the prefilled wizard on the Deploy page with Start disabled. It does
+not copy SSH keys, contact nodes, or run Ansible; review the pages and quit.
+
+The config file is separate from the installer's own `config.yaml` (the one that
+defines features and mirrors). See [`install.example.yaml`](install.example.yaml);
+only `hosts` and either `ssh.password` or `ssh.key_file` are required. Omitted
+values fall back to the wizard defaults: localhost HA, flannel, Kubespray's
+service/pod CIDRs, no mirror, and the `config.yaml` feature defaults.
+
+`hosts` accepts two shapes:
+
+- bare entries (`10.0.0.11`, `10.0.0.12-10.0.0.14`, `10.0.0.15,192.168.1.15`) —
+  roles are assigned automatically by the same inventory builder the wizard uses;
+- detailed host objects with `roles` (`control-plane`, `etcd`, `node`,
+  `calico_rr`) — the roles are used exactly as written.
+
+The YAML contains plaintext SSH credentials; keep it `chmod 600` (the installer
+warns when it is readable by other users). Run as root or with passwordless
+sudo, on a terminal: the wizard and live log remain visible. Re-running reuses
+the project directory, regenerates `hosts.yaml`/`extra-vars.yaml`, and keeps the
+generated `ansible-key`. Only one installer run should use a host at a time.
+
+Exit codes: `0` success (or dry-run reviewed), `1` preflight/conflict/SSH/playbook
+failure, `2` usage or config error, `130` SIGTERM.
+
+Current limits: IPv4 only; one `ssh.user` for all hosts; an existing key file
+cannot have a passphrase; `extra_vars` is merged last and bypasses config
+validation.
+
 # Usage
 ## Select setup mode
 ![setup_mode.png](images/setup_mode.png)

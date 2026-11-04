@@ -1,0 +1,90 @@
+# Config-driven installation for k8s-installer-tui.
+#
+#   k8s-installer-tui --config install.example.yaml
+#   k8s-installer-tui --config install.example.yaml --dry-run
+#
+# This file contains plaintext SSH credentials. Keep it mode 0600:
+#   chmod 600 install.example.yaml
+#
+# The installer's own config.yaml (configurable_vars, default_vars,
+# default_mirrors) stays next to the binary and is unrelated to this file.
+
+version: 1
+
+project_path: ~/idocluster
+hostname_prefix: node
+
+ssh:
+  user: root
+  port: 22
+  password: "change-me"
+  # Use an existing key instead of a password:
+  # key_file: /root/.ssh/id_ed25519
+  # sudo_password: "change-me"   # only valid with key_file
+
+# Shape 1: bare entries. inventory.py assigns control-plane/etcd/node roles
+# exactly as the TUI does. Accepted forms: ip, start-end, ip,access_ip.
+hosts:
+  - 10.0.0.11
+  - 10.0.0.12-10.0.0.14
+  - 10.0.0.15,192.168.1.15
+
+# Shape 2: detailed hosts. Roles are used exactly as written; every host needs
+# roles. Do not mix this shape with the bare entries above.
+# hosts:
+#   - name: node1
+#     ip: 10.0.0.11
+#     access_ip: 10.0.0.11        # defaults to ip
+#     ansible_host: 10.0.0.11     # defaults to access_ip
+#     roles: [control-plane, etcd]
+#     labels: {zone: zone1}
+#     taints: ["logging:NoSchedule"]
+#   - name: node2
+#     ip: 10.0.0.12
+#     roles: [control-plane, etcd]
+#   - name: node3
+#     ip: 10.0.0.13
+#     roles: [node, etcd]
+
+# Everything below is optional; the values shown are the defaults.
+ha:
+  mode: localhost                   # or kube-vip (then vip is required)
+  vip: ""
+
+network:
+  plugin: flannel                   # or calico
+  # calico_vxlan_mode: Always       # only valid with calico
+  service_cidr: 10.233.0.0/18
+  pod_cidr: 10.233.64.0/18
+  check_conflicts: true             # sampled ping; a reply aborts the run
+
+mirror:
+  enabled: false
+  urls: {}                          # overrides of config.yaml default_mirrors
+
+# Override the defaults from config.yaml's configurable_vars. Keys and types
+# must match that file; an unknown key or wrong type is a validation error.
+features: {}
+# features:
+#   ntp_enabled: true
+#   set_firewall_rules: true
+#   containerd_registries_mirrors:
+#     - prefix: _default
+#       server: ""
+#       mirrors:
+#         - host: http://registry.internal:5000
+#           capabilities: ["pull", "resolve"]
+#           skip_verify: true
+#   install_k8s_node_watcher: false
+#   csi_snapshot_controller_enabled: true
+#   install_nfs_client: false
+#   gvisor_enabled: false
+
+# Any other Ansible variable. Merged last, so it wins over everything above,
+# and it bypasses the config validation.
+extra_vars: {}
+# extra_vars:
+#   kube_proxy_mode: ipvs
+#   metrics_server_enabled: false
+#   additional_sysctl:
+#     - { name: net.ipv4.conf.all.rp_filter, value: 0 }

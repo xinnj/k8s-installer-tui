@@ -1040,8 +1040,9 @@ func initFlexDeployCluster() {
 		if !sshUserIsRoot() {
 			passwordLabel = "SSH / sudo Password: "
 		}
+		sshPassword = prefillSSHPassword
 		formUp.
-			AddPasswordField(passwordLabel, "", 0, '*', func(text string) {
+			AddPasswordField(passwordLabel, prefillSSHPassword, 0, '*', func(text string) {
 				sshPassword = text
 			})
 	} else {
@@ -1062,7 +1063,8 @@ func initFlexDeployCluster() {
 		// An existing key comes with no password to reuse, so a non-root SSH
 		// user needs one typed here. Empty is allowed: sudo may not want one.
 		if !sshUserIsRoot() {
-			formUp.AddPasswordField("Sudo password (if needed): ", "", 0, '*', func(text string) {
+			sudoPassword = prefillSudoPassword
+			formUp.AddPasswordField("Sudo password (if needed): ", prefillSudoPassword, 0, '*', func(text string) {
 				sudoPassword = text
 			})
 		}
@@ -1075,8 +1077,14 @@ func initFlexDeployCluster() {
 		inventoryContentString = text
 	})
 
-	for k, v := range appConfig.Default_vars {
-		extraVars[k] = v
+	// In the interactive flow the defaults are merged last, so the operator can
+	// still see and edit them. A config run already built extraVars with the
+	// install file winning over these defaults; merging them again here would
+	// show (and later save) values the file did not ask for.
+	if !configRun {
+		for k, v := range appConfig.Default_vars {
+			extraVars[k] = v
+		}
 	}
 	extraVarsContentByte, err := yaml.Marshal(&extraVars)
 	check(err)
@@ -1225,6 +1233,13 @@ func initFlexDeployCluster() {
 	formDown.AddButton("Quit", func() {
 		showQuitModal()
 	})
+
+	if dryRun {
+		formUp.SetTitle(formUp.GetTitle() + " (dry run - installation disabled)")
+		if startButton := formDown.GetButton(formDown.GetButtonIndex("Start")); startButton != nil {
+			startButton.SetDisabled(true)
+		}
+	}
 
 	flexDeployCluster.SetDirection(tview.FlexRow).
 		AddItem(formUp, 0, 1, true).

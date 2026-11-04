@@ -102,13 +102,13 @@ func initFlexSetupCluster(clean bool) {
 		pages.SwitchToPage("Deploy Cluster")
 	})
 	backButton = formDown.GetButton(formDown.GetButtonIndex("Back"))
-	backButton.SetDisabled(false)
+	backButton.SetDisabled(autoRun)
 
 	formDown.AddButton("Quit", func() {
 		showQuitModal()
 	})
 	quitButton = formDown.GetButton(formDown.GetButtonIndex("Quit"))
-	quitButton.SetDisabled(false)
+	quitButton.SetDisabled(autoRun)
 
 	flexSetupCluster.SetDirection(tview.FlexRow).
 		AddItem(flexSetupClusterUp, 0, 1, false).
@@ -149,6 +149,20 @@ func becomeExportLine(passwordFileExists bool) string {
 }
 
 func execCmd(view *tview.TextView) {
+	if autoRun {
+		// A panic in this goroutine would otherwise exit with status 2, which
+		// the caller reserves for usage/config errors. Record it, clean up the
+		// container and staged passwords, and report a normal install failure.
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				appendToLog("\n===== installer error: " + panicMessage(recovered) + " =====\n")
+				autoRunExitCode.Store(1)
+				cleanupAutoRun()
+				os.Exit(1)
+			}
+		}()
+	}
+
 	// hardening.yaml sits next to the binary and is mounted at
 	// /data/k8s-installer-tui in the container. Pass it last so its values win
 	// over the project's extra-vars.yaml.
@@ -369,9 +383,24 @@ eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kube
 	app.QueueUpdateDraw(func() {
 		logContent.SetBackgroundColor(logBgColor)
 		abortButton.SetDisabled(true)
-		backButton.SetDisabled(false)
-		quitButton.SetDisabled(false)
+		if !autoRun {
+			backButton.SetDisabled(false)
+			quitButton.SetDisabled(false)
+		}
 	})
+
+	if autoRun {
+		code := exitCodeForRun(err)
+		autoRunExitCode.Store(int32(code))
+		appendToLog(fmt.Sprintf("\n===== installation finished with exit code %d; log: %s =====\n",
+			code, filepath.Join(projectPath, logFileName)))
+
+		// Let the green/red result sit on screen long enough to be seen before
+		// the process exits for automation.
+		time.Sleep(3 * time.Second)
+		cleanupAutoRun()
+		os.Exit(code)
+	}
 }
 
 func updateTimer(stop chan bool) {

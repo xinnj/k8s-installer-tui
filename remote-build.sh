@@ -79,7 +79,7 @@ step3_package() {
          rm -rf \"\${PKG_DIR}\"
          mkdir -p \"\${PKG_DIR}\" &&
          chmod +x k8s-installer-tui &&
-         cp -a ansible-playbooks ansible-roles images config.yaml k8s-installer-tui kubespray-*.tar.gz LICENSE README.md patches inventory_builder \"\${PKG_DIR}/\" &&
+         cp -a ansible-playbooks ansible-roles images config.yaml hardening.yaml install.example.yaml k8s-installer-tui kubespray-*.tar.gz LICENSE README.md patches inventory_builder \"\${PKG_DIR}/\" &&
          echo 'Packaged files:' &&
          ls -la \"\${PKG_DIR}/\""
 

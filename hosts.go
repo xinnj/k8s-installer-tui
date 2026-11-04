@@ -282,6 +282,9 @@ func getHostsList() []string {
 
 		aShortHostname := strings.Split(aHostname, ".")[0]
 		aMatches := re.FindStringSubmatch(aShortHostname)
+		if len(aMatches) < 3 {
+			return strings.Compare(aHostname, bHostname)
+		}
 		aHostId, err := strconv.Atoi(aMatches[2])
 		if err != nil {
 			return strings.Compare(aHostname, bHostname)
@@ -289,6 +292,9 @@ func getHostsList() []string {
 
 		bShortHostname := strings.Split(bHostname, ".")[0]
 		bMatches := re.FindStringSubmatch(bShortHostname)
+		if len(bMatches) < 3 {
+			return strings.Compare(aHostname, bHostname)
+		}
 		bHostId, err := strconv.Atoi(bMatches[2])
 		if err != nil {
 			return strings.Compare(aHostname, bHostname)

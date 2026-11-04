@@ -215,48 +215,29 @@ func installDependencies() {
 	check(err)
 }
 
-func readConfig() {
-	var configPath string
-	if len(os.Args) > 1 {
-		var err error
-		configPath, err = filepath.Abs(os.Args[1])
-		check(err)
-	} else {
-		configPath = filepath.Join(appPath, "config.yaml")
+func readAppConfig(configPath string) error {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
 	}
 
-	data, err := os.ReadFile(configPath)
-	check(err)
-
-	err = yaml.Unmarshal(data, &appConfig)
-	check(err)
+	return yaml.Unmarshal(data, &appConfig)
 }
 
-func main() {
-	opts, err := parseOptions(os.Args[1:])
+func setAppPath() error {
+	executable, err := os.Executable()
 	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			printUsage(os.Stdout)
-			return
-		}
-		fmt.Fprintln(os.Stderr, "k8s-installer-tui:", err)
-		fmt.Fprintln(os.Stderr, "Run 'k8s-installer-tui --help' for usage.")
-		os.Exit(2)
+		return err
 	}
-	if opts.showVersion {
-		fmt.Println(versionString())
-		return
-	}
+	appPath = filepath.Dir(executable)
 
+	return nil
+}
+
+func preflightHost() {
 	checkPrivilege()
 
-	ex, err := os.Executable()
-	check(err)
-	appPath = filepath.Dir(ex)
-
 	check(os.MkdirAll(offlinePath, 0755))
-
-	readConfig()
 
 	prepareKubespray()
 
@@ -276,7 +257,9 @@ func main() {
 	// behind - one still running an Ansible playbook, say - would keep working
 	// on a cluster nobody is watching.
 	removeLeftoverContainers()
+}
 
+func initPages() {
 	initFlexSetupMode()
 
 	pages.AddPage("Error", modalError, true, false)
@@ -296,7 +279,9 @@ func main() {
 	pages.AddPage("Mirror", flexMirror, true, false)
 	pages.AddPage("Deploy Cluster", flexDeployCluster, true, false)
 	pages.AddPage("Setup Cluster", flexSetupCluster, true, false)
+}
 
+func runApp() {
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlC {
 			showQuitModal()
@@ -309,4 +294,51 @@ func main() {
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
+}
+
+func main() {
+	opts, err := parseOptions(os.Args[1:])
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			printUsage(os.Stdout)
+			return
+		}
+		fmt.Fprintln(os.Stderr, "k8s-installer-tui:", err)
+		fmt.Fprintln(os.Stderr, "Run 'k8s-installer-tui --help' for usage.")
+		os.Exit(2)
+	}
+	if opts.showVersion {
+		fmt.Println(versionString())
+		return
+	}
+
+	if err := setAppPath(); err != nil {
+		fmt.Fprintln(os.Stderr, "k8s-installer-tui:", err)
+		os.Exit(1)
+	}
+
+	if opts.configPath != "" {
+		if err := readAppConfig(filepath.Join(appPath, "config.yaml")); err != nil {
+			fmt.Fprintln(os.Stderr, "k8s-installer-tui: config:", err)
+			os.Exit(2)
+		}
+
+		cfg, err := loadInstallConfig(opts.configPath, appConfig)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "k8s-installer-tui:", err)
+			os.Exit(2)
+		}
+		if warning := configPermissionWarning(opts.configPath); warning != "" {
+			fmt.Fprintln(os.Stderr, "warning:", warning)
+		}
+
+		runConfigDriven(cfg, opts.dryRun)
+		return
+	}
+
+	check(readAppConfig(filepath.Join(appPath, "config.yaml")))
+
+	preflightHost()
+	initPages()
+	runApp()
 }

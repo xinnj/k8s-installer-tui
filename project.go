@@ -124,7 +124,21 @@ func initFormNewProject() {
 	formNewProject.SetTitle("New Project")
 	formNewProject.SetBorder(true)
 
-	formNewProject.AddInputField("IP address of each node (separated by space): ", "", 0, nil, func(ips string) {
+	currentUser, _ := user.Current()
+	sshUser := nodeSshUser
+	if sshUser == "" {
+		sshUser = currentUser.Username
+	}
+	sshPort := nodeSshPort
+	if sshPort == "" {
+		sshPort = "22"
+	}
+	hostnamePrefix := nodeHostnamePrefix
+	if hostnamePrefix == "" {
+		hostnamePrefix = "node"
+	}
+
+	formNewProject.AddInputField("IP address of each node (separated by space): ", strings.Join(nodeIps, " "), 0, nil, func(ips string) {
 		re := regexp.MustCompile(` +`)
 		var r []string
 		r = re.Split(ips, -1)
@@ -137,16 +151,15 @@ func initFormNewProject() {
 		}
 	})
 
-	currentUser, _ := user.Current()
-	formNewProject.AddInputField("SSH username: ", currentUser.Username, 20, nil, func(text string) {
+	formNewProject.AddInputField("SSH username: ", sshUser, 20, nil, func(text string) {
 		nodeSshUser = text
 	})
 
-	formNewProject.AddInputField("SSH port: ", "22", 20, nil, func(text string) {
+	formNewProject.AddInputField("SSH port: ", sshPort, 20, nil, func(text string) {
 		nodeSshPort = text
 	})
 
-	formNewProject.AddInputField("Hostname prefix: ", "node", 20, nil, func(text string) {
+	formNewProject.AddInputField("Hostname prefix: ", hostnamePrefix, 20, nil, func(text string) {
 		nodeHostnamePrefix = text
 	})
 
@@ -349,6 +362,12 @@ func loadInventory() error {
 }
 
 func saveInventory() {
+	check(saveInventoryErr())
+}
+
+// saveInventoryErr is saveInventory for callers that report the failure instead
+// of panicking, such as the config-driven run.
+func saveInventoryErr() error {
 	if setupNewCluster {
 		inventoryFile = filepath.Join(projectPath, "hosts.yaml")
 	} else {
@@ -356,18 +375,26 @@ func saveInventory() {
 	}
 
 	data, err := yaml.Marshal(&inventory)
-	check(err)
-	err = os.WriteFile(inventoryFile, data, 0644)
-	check(err)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(inventoryFile, data, 0644); err != nil {
+		return err
+	}
 
 	// extra-vars.yaml can only be modified during setting up a new cluster
 	if setupNewCluster {
 		extraVarsFile := filepath.Join(projectPath, "extra-vars.yaml")
 		data, err = yaml.Marshal(&extraVars)
-		check(err)
-		err = os.WriteFile(extraVarsFile, data, 0644)
-		check(err)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(extraVarsFile, data, 0644); err != nil {
+			return err
+		}
 	}
 
 	chownToRunner(projectPath)
+
+	return nil
 }
