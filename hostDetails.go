@@ -20,15 +20,22 @@ type HostDetails struct {
 }
 
 var hostDetails HostDetails
+var hostDetailsReadonly bool
 var tmpNodeLabels string
 var tmpNodeTaints string
 var formHostDetailsActions = tview.NewForm()
 
+func hostIsReadonly(hostname string) bool {
+	_, ok := originalInventory.All.Hosts[hostname]
+	return ok
+}
+
 func initFlexHostDetails(hostname string, readonly bool) {
+	hostDetailsReadonly = readonly
 	getHostDetails(hostname)
 
 	formHostDetails := tview.NewForm()
-	formHostDetails.AddTextView("Hostname: ", hostname, 0, 3, false, false)
+	formHostDetails.AddTextView("Hostname: ", hostname, 0, 1, false, false)
 
 	formHostDetails.AddInputField("Ansible Host:", hostDetails.Ansible_host, 0, nil, func(text string) {
 		hostDetails.Ansible_host = text
@@ -43,7 +50,7 @@ func initFlexHostDetails(hostname string, readonly bool) {
 		writeBackHostDetails()
 	})
 
-	formHostDetails.AddTextView("Groups: ", strings.Join(hostDetails.Groups, "\n"), 0, 0, false, true)
+	formHostDetails.AddTextView("Groups: ", strings.Join(hostDetails.Groups, "\n"), 0, 3, false, true)
 
 	var labelsString string
 	if len(hostDetails.Node_labels) != 0 {
@@ -51,7 +58,7 @@ func initFlexHostDetails(hostname string, readonly bool) {
 		check(err)
 		labelsString = string(labels)
 	}
-	formHostDetails.AddTextView("Node Labels: ", labelsString, 0, 0, false, true)
+	formHostDetails.AddTextView("Node Labels: ", labelsString, 0, 2, false, true)
 
 	var taintsString string
 	if len(hostDetails.Node_taints) != 0 {
@@ -59,30 +66,32 @@ func initFlexHostDetails(hostname string, readonly bool) {
 		check(err)
 		taintsString = string(taints)
 	}
-	formHostDetails.AddTextView("Node Taints: ", taintsString, 0, 0, false, true)
+	formHostDetails.AddTextView("Node Taints: ", taintsString, 0, 2, false, true)
 
 	formHostDetailsActions.Clear(true)
 	if readonly {
 		for i := 0; i < formHostDetails.GetFormItemCount(); i++ {
 			formHostDetails.GetFormItem(i).SetDisabled(true)
 		}
-	} else {
-		formHostDetailsActions.
-			AddButton("Edit Groups", func() {
-				initFormEditGroups()
-				pages.SwitchToPage("Edit Groups")
-			}).
-			AddButton("Edit Node Labels", func() {
-				flexEditNodeLabels.Clear()
-				initFlexEditNodeLabels()
-				pages.SwitchToPage("Edit Node Labels")
-			}).
-			AddButton("Edit Node Taints", func() {
-				flexEditNodeTaints.Clear()
-				initFlexEditNodeTaints()
-				pages.SwitchToPage("Edit Node Taints")
-			})
 	}
+
+	// Group membership, labels and taints stay editable even when the host is
+	// an existing node in add-nodes mode: only its addresses are locked.
+	formHostDetailsActions.
+		AddButton("Edit Groups", func() {
+			initFormEditGroups()
+			pages.SwitchToPage("Edit Groups")
+		}).
+		AddButton("Edit Node Labels", func() {
+			flexEditNodeLabels.Clear()
+			initFlexEditNodeLabels()
+			pages.SwitchToPage("Edit Node Labels")
+		}).
+		AddButton("Edit Node Taints", func() {
+			flexEditNodeTaints.Clear()
+			initFlexEditNodeTaints()
+			pages.SwitchToPage("Edit Node Taints")
+		})
 
 	flexHostDetails.
 		SetDirection(tview.FlexRow).
@@ -162,7 +171,7 @@ func initFormEditGroups() {
 		writeBackHostDetails()
 
 		flexHostDetails.Clear()
-		initFlexHostDetails(hostDetails.Hostname, false)
+		initFlexHostDetails(hostDetails.Hostname, hostIsReadonly(hostDetails.Hostname))
 		pages.SwitchToPage("Edit Hosts")
 	})
 
@@ -202,7 +211,7 @@ func initFlexEditNodeLabels() {
 			writeBackHostDetails()
 			tmpNodeLabels = ""
 			flexHostDetails.Clear()
-			initFlexHostDetails(hostDetails.Hostname, false)
+			initFlexHostDetails(hostDetails.Hostname, hostIsReadonly(hostDetails.Hostname))
 			pages.SwitchToPage("Edit Hosts")
 		}
 	})
@@ -284,7 +293,7 @@ func initFlexEditNodeTaints() {
 			writeBackHostDetails()
 			tmpNodeTaints = ""
 			flexHostDetails.Clear()
-			initFlexHostDetails(hostDetails.Hostname, false)
+			initFlexHostDetails(hostDetails.Hostname, hostIsReadonly(hostDetails.Hostname))
 			pages.SwitchToPage("Edit Hosts")
 		}
 	})

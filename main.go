@@ -294,6 +294,7 @@ func runApp() {
 
 		return event
 	})
+	app.SetMouseCapture(normalizeButtonDoubleClicks(pages))
 
 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)

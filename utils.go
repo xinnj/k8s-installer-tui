@@ -16,6 +16,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 func check(e error) {
@@ -476,6 +479,53 @@ func showErrorModal(text string, handler func(buttonIndex int, buttonLabel strin
 	modalError.ClearButtons()
 	modalError.SetText(text).AddButtons([]string{"OK"}).SetDoneFunc(handler)
 	pages.SwitchToPage("Error")
+}
+
+// normalizeButtonDoubleClicks turns a double-click over a button into a single
+// click. tview treats any second click within DoubleClickInterval as a
+// MouseLeftDoubleClick, even when it lands somewhere else, and Button ignores
+// that action. Selecting a host and then clicking one of its action buttons is
+// exactly that sequence. Input fields and text views are left alone, so their
+// double-click word selection still works.
+func normalizeButtonDoubleClicks(root tview.Primitive) func(event *tcell.EventMouse, action tview.MouseAction) (*tcell.EventMouse, tview.MouseAction) {
+	return func(event *tcell.EventMouse, action tview.MouseAction) (*tcell.EventMouse, tview.MouseAction) {
+		if action == tview.MouseLeftDoubleClick {
+			x, y := event.Position()
+			if buttonAt(root, x, y) {
+				action = tview.MouseLeftClick
+			}
+		}
+
+		return event, action
+	}
+}
+
+func buttonAt(primitive tview.Primitive, x, y int) bool {
+	if primitive == nil {
+		return false
+	}
+
+	switch value := primitive.(type) {
+	case *tview.Pages:
+		_, page := value.GetFrontPage()
+		return buttonAt(page, x, y)
+	case *tview.Flex:
+		for i := 0; i < value.GetItemCount(); i++ {
+			if buttonAt(value.GetItem(i), x, y) {
+				return true
+			}
+		}
+	case *tview.Form:
+		for i := 0; i < value.GetButtonCount(); i++ {
+			if button := value.GetButton(i); button != nil && button.InRect(x, y) {
+				return true
+			}
+		}
+	case *tview.Button:
+		return value.InRect(x, y)
+	}
+
+	return false
 }
 
 func showQuitModal() {

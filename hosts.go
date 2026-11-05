@@ -40,7 +40,7 @@ func initFlexEditHosts(selectedHostname string) {
 	}
 	listHosts.SetChangedFunc(func(index int, host string, secondaryText string, shortcut rune) {
 		hostname := strings.Split(host, ":")[0]
-		if _, ok := originalInventory.All.Hosts[hostname]; ok {
+		if hostIsReadonly(hostname) {
 			removeButton.SetDisabled(true)
 			flexHostDetails.Clear()
 			initFlexHostDetails(hostname, true)
@@ -91,7 +91,7 @@ func initFlexEditHosts(selectedHostname string) {
 		listHosts.SetCurrentItem(selectedIndex[0])
 		hostname = selectedHostname
 	}
-	if _, ok := originalInventory.All.Hosts[hostname]; ok {
+	if hostIsReadonly(hostname) {
 		removeButton.SetDisabled(true)
 		flexHostDetails.Clear()
 		initFlexHostDetails(hostname, true)
