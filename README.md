@@ -60,6 +60,12 @@ sudo, on a terminal: the wizard and live log remain visible. Re-running reuses
 the project directory, regenerates `hosts.yaml`/`extra-vars.yaml`, and keeps the
 generated `ansible-key`. Only one installer run should use a host at a time.
 
+When the run ends, the TUI exits and its screen is cleared, so the console then
+prints an `Installation result` block: result, exit code, duration, project,
+log file path, the host problems from the last PLAY RECAP, the last error line,
+and the last 20 lines of the log. The same log stays on disk at the printed
+path.
+
 Exit codes: `0` success (or dry-run reviewed), `1` preflight/conflict/SSH/playbook
 failure, `2` usage or config error, `130` SIGTERM.
 

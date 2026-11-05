@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -72,6 +73,10 @@ func buildInstallConfig(in createConfigInput) (*installConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	names := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		names = append(names, host.Name)
+	}
 
 	features, extra, err := classifyVars(in.App, in.ExtraVars)
 	if err != nil {
@@ -82,7 +87,7 @@ func buildInstallConfig(in createConfigInput) (*installConfig, error) {
 	cfg := &installConfig{
 		Version:        1,
 		ProjectPath:    in.ProjectPath,
-		HostnamePrefix: normalizedHostnamePrefix(in.HostnamePrefix),
+		HostnamePrefix: hostnamePrefixFromHosts(names, in.HostnamePrefix),
 		SSH: installSSH{
 			User:         in.SSHUser,
 			Port:         in.SSHPort,
@@ -298,9 +303,40 @@ func stringValue(values map[string]any, key string) string {
 	return strings.TrimSpace(value)
 }
 
+// hostnameIndexPattern splits a name into the prefix and the number appended
+// to it, the same way getNextHostname does.
+var hostnameIndexPattern = regexp.MustCompile(`^(.+?)(\d+)$`)
+
+// hostnamePrefixFromHosts recovers the prefix the inventory's names were built
+// from, so a generated file says onpremisis- for onpremisis-1..3 instead of the
+// wizard's "node" default. Names that do not share one keep the operator's
+// prefix.
+func hostnamePrefixFromHosts(hosts []string, fallback string) string {
+	prefix := ""
+	for _, host := range hosts {
+		short := strings.Split(host, ".")[0]
+		match := hostnameIndexPattern.FindStringSubmatch(short)
+		if match == nil {
+			return normalizedHostnamePrefix(fallback)
+		}
+		if prefix == "" {
+			prefix = match[1]
+		} else if match[1] != prefix {
+			return normalizedHostnamePrefix(fallback)
+		}
+	}
+
+	if prefix == "" {
+		return normalizedHostnamePrefix(fallback)
+	}
+	return normalizedHostnamePrefix(prefix)
+}
+
 func normalizedHostnamePrefix(prefix string) string {
 	prefix = strings.TrimSpace(prefix)
-	if hostnamePattern.MatchString(prefix) && len(prefix) <= 63 {
+	// The prefix is followed by a number, so a trailing hyphen is part of a
+	// valid hostname: onpremisis- + 1 is onpremisis-1.
+	if prefix != "" && len(prefix) <= 62 && hostnamePattern.MatchString(prefix+"1") {
 		return prefix
 	}
 

@@ -4,6 +4,7 @@ package main
 // without root, podman or a terminal.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -231,6 +232,7 @@ func TestBuildInstallConfigRejectsEvenEtcd(t *testing.T) {
 func TestBuildInstallConfigFallsBackToHostnamePrefix(t *testing.T) {
 	in := validExportInput(t)
 	in.HostnamePrefix = "bad_prefix!"
+	in.Inventory = exportInventoryNamed("alpha1", "beta2", "gamma3")
 
 	cfg, err := buildInstallConfig(in)
 	if err != nil {
@@ -238,6 +240,57 @@ func TestBuildInstallConfigFallsBackToHostnamePrefix(t *testing.T) {
 	}
 	if cfg.HostnamePrefix != "node" {
 		t.Fatalf("hostname prefix = %q, want the node fallback", cfg.HostnamePrefix)
+	}
+}
+
+// exportInventoryNamed builds a valid three-host inventory with the given
+// names, so a test can control what prefix the names imply.
+func exportInventoryNamed(names ...string) Inventory {
+	var inv Inventory
+	inv.All.Hosts = map[string]Host{}
+	inv.All.Children.Kube_control_plane.Hosts = map[string]map[any]any{}
+	inv.All.Children.Kube_node.Hosts = map[string]map[any]any{}
+	inv.All.Children.Etcd.Hosts = map[string]map[any]any{}
+	inv.All.Children.Calico_rr.Hosts = map[string]map[any]any{}
+
+	for index, name := range names {
+		ip := fmt.Sprintf("10.0.0.%d", 11+index)
+		inv.All.Hosts[name] = Host{Ip: ip, Access_ip: ip, Ansible_host: ip}
+		inv.All.Children.Kube_control_plane.Hosts[name] = map[any]any{}
+		inv.All.Children.Kube_node.Hosts[name] = map[any]any{}
+		inv.All.Children.Etcd.Hosts[name] = map[any]any{}
+	}
+	inv.All.Vars.Ansible_user = "root"
+	inv.All.Vars.Ansible_port = "22"
+
+	return inv
+}
+
+func TestBuildInstallConfigDerivesHostnamePrefix(t *testing.T) {
+	in := validExportInput(t)
+	in.HostnamePrefix = "node"
+	in.Inventory = exportInventoryNamed("onpremisis-1", "onpremisis-2", "onpremisis-3")
+
+	cfg, err := buildInstallConfig(in)
+	if err != nil {
+		t.Fatalf("build config: %v", err)
+	}
+	if cfg.HostnamePrefix != "onpremisis-" {
+		t.Fatalf("hostname prefix = %q, want onpremisis-", cfg.HostnamePrefix)
+	}
+}
+
+func TestBuildInstallConfigKeepsPrefixForMixedHostnames(t *testing.T) {
+	in := validExportInput(t)
+	in.HostnamePrefix = "farm"
+	in.Inventory = exportInventoryNamed("alpha1", "beta2", "gamma3")
+
+	cfg, err := buildInstallConfig(in)
+	if err != nil {
+		t.Fatalf("build config: %v", err)
+	}
+	if cfg.HostnamePrefix != "farm" {
+		t.Fatalf("hostname prefix = %q, want the supplied farm", cfg.HostnamePrefix)
 	}
 }
 

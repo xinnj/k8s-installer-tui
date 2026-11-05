@@ -343,8 +343,10 @@ func (c *installConfig) validate(app AppConfig) error {
 		}
 	}
 
-	if !hostnamePattern.MatchString(c.HostnamePrefix) || len(c.HostnamePrefix) > 63 {
-		add("hostname_prefix: %q is not a valid DNS label", c.HostnamePrefix)
+	// The prefix is followed by a number, so a trailing hyphen is allowed:
+	// onpremisis- + 1 is the valid hostname onpremisis-1.
+	if len(c.HostnamePrefix) > 62 || !hostnamePattern.MatchString(c.HostnamePrefix+"1") {
+		add("hostname_prefix: %q does not form a valid hostname", c.HostnamePrefix)
 	}
 
 	hostCount := len(c.Hosts.Auto) + len(c.Hosts.Detailed)

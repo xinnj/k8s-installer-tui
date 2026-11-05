@@ -156,9 +156,8 @@ func execCmd(view *tview.TextView) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				appendToLog("\n===== installer error: " + panicMessage(recovered) + " =====\n")
-				autoRunExitCode.Store(1)
 				cleanupAutoRun()
-				os.Exit(1)
+				finishAutoRun(1)
 			}
 		}()
 	}
@@ -391,7 +390,6 @@ eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kube
 
 	if autoRun {
 		code := exitCodeForRun(err)
-		autoRunExitCode.Store(int32(code))
 		appendToLog(fmt.Sprintf("\n===== installation finished with exit code %d; log: %s =====\n",
 			code, filepath.Join(projectPath, logFileName)))
 
@@ -399,8 +397,18 @@ eval "ansible $parameters kube_control_plane[0] -m shell -a '/usr/local/bin/kube
 		// the process exits for automation.
 		time.Sleep(3 * time.Second)
 		cleanupAutoRun()
-		os.Exit(code)
+		finishAutoRun(code)
 	}
+}
+
+// finishAutoRun records the exit code and stops the wizard. The process exits
+// in runConfigDriven after Run returns: app.Stop runs tcell's Fini, which turns
+// mouse reporting off and restores the terminal. Calling os.Exit from this
+// goroutine instead skipped that, so after a failed run the shell received
+// mouse escape sequences as typed input.
+func finishAutoRun(code int) {
+	autoRunExitCode.Store(int32(code))
+	app.Stop()
 }
 
 func updateTimer(stop chan bool) {

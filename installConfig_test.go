@@ -80,6 +80,22 @@ func loadTestConfig(t *testing.T, v any) (*installConfig, error) {
 	return cfg, cfg.validate(testAppConfig())
 }
 
+// A hostname prefix is prepended to a number, so a trailing hyphen is part of
+// the name: "onpremisis-" + "1" is a valid hostname even though the prefix
+// alone is not a DNS label.
+func TestHostnamePrefixMayEndWithHyphen(t *testing.T) {
+	config := validDetailedConfig()
+	config["hostname_prefix"] = "onpremisis-"
+
+	cfg, err := loadTestConfig(t, config)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.HostnamePrefix != "onpremisis-" {
+		t.Errorf("hostname prefix = %q, want onpremisis-", cfg.HostnamePrefix)
+	}
+}
+
 func TestParseInstallConfigHostShapes(t *testing.T) {
 	t.Run("bare entries", func(t *testing.T) {
 		cfg, err := parseInstallConfig(yamlBytes(t, validAutoConfig()))

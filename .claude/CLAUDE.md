@@ -73,10 +73,19 @@ host is not implicitly a `node`.
 
 `runConfigDriven` (`configRun.go`) sets `autoRun`, prepares the project and
 files, and queues `initFlexSetupCluster(true)` after `app.Run()` starts; the log
-view's `app.Draw()` blocks until the event loop exists. `execCmd` records the
-exit code, removes the container/password files, and exits 0/1 in auto-run. The
-Deploy page reads `prefillSSHPassword`/`prefillSudoPassword` and the `dryRun`
-global (`deployCluster.go`). Config errors exit 2 before the wizard opens.
+view's `app.Draw()` blocks until the event loop exists. In auto-run, `execCmd`
+records the exit code, removes the container/password files, and calls
+`finishAutoRun`, which stops the event loop; the process exits 0/1 in
+`runConfigDriven` only after `Run` returns. Stopping first is what lets
+`app.Stop` run tcell's `Fini` — exiting from the playbook goroutine left the
+terminal in raw mode with mouse reporting on. Because `Fini` also clears the
+screen, `runConfigDriven` prints `autoRunSummary` afterward: a result block with
+the outcome, exit code, duration, project and log path, then — for a failure —
+the hosts the last PLAY RECAP marks unreachable/failed, the last `fatal:` /
+`ERROR!` line with its `msg` value, and the last 20 lines of the log. The Deploy
+page reads
+`prefillSSHPassword`/`prefillSudoPassword` and the `dryRun` global
+(`deployCluster.go`). Config errors exit 2 before the wizard opens.
 
 ### Create mode (`--create`)
 
@@ -96,6 +105,10 @@ playbook is called.
 `buildInstallConfig` (`createConfig.go`) turns the live globals into the same
 schema `--config` reads, then runs `applyDefaults` + `validate` before writing.
 Hosts become detailed objects sorted by name with roles from group membership.
+`hostname_prefix` is recovered from the host names (`onpremisis-` for
+`onpremisis-1..3`) instead of the wizard's `node` default; names that share no
+prefix keep the operator's value. A trailing hyphen is valid there because the
+prefix is followed by a number (validation checks `prefix + "1"`).
 Features are every key in `configurableVarTypes`; `extra_vars` keeps the
 remainder after removing feature, network, HA (`applyHaMode`), mirror, and
 unchanged `Default_vars` keys — `extra_vars` is merged last, so a leaked key
