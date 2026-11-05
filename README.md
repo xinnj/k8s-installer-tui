@@ -1,35 +1,37 @@
 # k8s-installer-tui
-To setup a k8s cluster with terminal UI. Thanks to these two amazing projects:
+To set up a Kubernetes cluster with a terminal UI. Thanks to these two amazing projects:
 - [Kubespray](https://github.com/kubernetes-sigs/kubespray)
 - [Tview](https://github.com/rivo/tview)
 
-# Features
-- Create a new k8s cluster, or add nodes to existing cluster
-- Auto assign nodes to control plane or etcd role
-- Edit node labels
-- Auto open necessary firewall rules on each node (firewalld or ufw)
-- Feature switchers: ntp, containerd insecure registries, install additional packages on nodes
+## Features
+- Create a new k8s cluster, or add nodes to an existing cluster
+- Auto-assign nodes to control plane or etcd role
+- Edit node labels and taints
+- Auto-open necessary firewall rules on each node (firewalld or ufw)
+- Feature toggles: NTP, containerd registry mirrors, k8s-node-watcher, CSI snapshot controller, NFS client, and gvisor
 - Select cluster HA mode: localhost load balancing, or kube-vip
-- Config service & pod CIDR, and perform potential IP conflicts checking (sampled)
-- Enable public download mirror to accelerate download speed in China
-- Auto create SSH key and copy to each node
+- Configure the service and pod CIDRs and run sampled IP-conflict checks
+- Enable a public download mirror to speed up downloads in China
+- Auto-create an SSH key and copy it to each node
 - Generate a reusable installation config from the wizard with `--create`
 - Support offline install
-  - Execute the commands below to prepare the materials for offline install.
+  - Run the following commands to prepare the offline install materials:
     ```shell
     mkdir -p ~/k8s-installer-offline
     cd ~/k8s-installer-offline
-    curl -o podman https://github.com/xinnj/podman-launcher/releases/download/1.0.0/podman-launcher-amd64
+    curl -L -o podman https://github.com/xinnj/podman-launcher/releases/download/1.0.1/podman-launcher-amd64
     chmod +x podman
-    ./podman pull docker.io/xinnj/kubespray-runtime:latest
-    ./podman save docker.io/xinnj/kubespray-runtime:latest | gzip > docker.io_xinnj_kubespray-runtime.tgz
+    ./podman pull docker.io/xinnj/kubespray-runtime:2.29.1
+    ./podman save docker.io/xinnj/kubespray-runtime:2.29.1 -o docker.io_xinnj_kubespray-runtime-2.29.1.tar
     ```
 
-# Installation
-Download the release package, unpack it on a linux host and execute "k8s-installer-tui" with root privilege.
+## Installation
+Download the release package, unpack it on a Linux host, and run `k8s-installer-tui` as root.
 
-# Config-driven (unattended) installation
-Instead of stepping through the wizard, one YAML file can fill it and start the
+Requirements: Linux with root or passwordless sudo, a terminal, `config.yaml` and a `kubespray-*.tar.gz` archive next to the binary, and Podman (or network access so the bundled `podman-launcher` can be downloaded).
+
+## Config-driven (unattended) installation
+Instead of stepping through the wizard, a single YAML file can supply the answers and start the
 installation:
 
 ```shell
@@ -39,7 +41,7 @@ installation:
 
 `--dry-run` runs the same validation, project generation, and IP-conflict check,
 then opens the prefilled wizard on the Deploy page with Start disabled. It does
-not copy SSH keys, contact nodes, or run Ansible; review the pages and quit.
+not copy SSH keys, SSH into nodes, or run Ansible; review the pages and quit.
 
 The config file is separate from the installer's own `config.yaml` (the one that
 defines features and mirrors). See [`install.example.yaml`](install.example.yaml);
@@ -52,13 +54,14 @@ service/pod CIDRs, no mirror, and the `config.yaml` feature defaults.
 - bare entries (`10.0.0.11`, `10.0.0.12-10.0.0.14`, `10.0.0.15,192.168.1.15`) —
   roles are assigned automatically by the same inventory builder the wizard uses;
 - detailed host objects with `roles` (`control-plane`, `etcd`, `node`,
-  `calico_rr`) — the roles are used exactly as written.
+  `calico_rr`) — no other roles are added; aliases such as `master` and `worker`
+  are normalized to the canonical names.
 
 The YAML contains plaintext SSH credentials; keep it `chmod 600` (the installer
 warns when it is readable by other users). Run as root or with passwordless
 sudo, on a terminal: the wizard and live log remain visible. Re-running reuses
 the project directory, regenerates `hosts.yaml`/`extra-vars.yaml`, and keeps the
-generated `ansible-key`. Only one installer run should use a host at a time.
+generated `ansible-key`. Only one installer run should target the same host at a time.
 
 When the run ends, the TUI exits and its screen is cleared, so the console then
 prints an `Installation result` block: result, exit code, duration, project,
@@ -73,7 +76,7 @@ Current limits: IPv4 only; one `ssh.user` for all hosts; an existing key file
 cannot have a passphrase; `extra_vars` is merged last and bypasses config
 validation.
 
-# Generate a config from the wizard (--create)
+## Generate a config from the wizard (--create)
 The wizard can also write the installation file used by `--config`:
 
 ```shell
@@ -91,12 +94,14 @@ The Save Config page records either an SSH password or an existing key file
 (plus a sudo password for a non-root user) and writes detailed hosts with their
 exact roles, labels, and taints. The file is written with mode `0600`, and an
 existing file is only replaced after confirmation. `-c/--config` names the
-output file in this mode, defaulting to `install.yaml`; the page can edit it.
+output file in this mode, defaulting to `install.yaml`; the Output file field on
+the Save Config page can change it.
 
 `--create` still runs the preflight (root or passwordless sudo, Podman, the
 Kubespray archive) because creating or loading a project uses the container.
 `--create --dry-run` is rejected because nothing is installed. Exit codes: `0`
-after a successful write or a quit, `2` for a usage or `config.yaml` error.
+after a successful write or a quit, `1` if the preflight fails, `2` for a usage
+or `config.yaml` error.
 
 The generated file can be reviewed and run with:
 
@@ -108,54 +113,98 @@ The generated file can be reviewed and run with:
 `--create` always writes the detailed host shape; arbitrary `extra_vars` are
 not editable in this flow (use the Features page or edit the file afterward).
 
-# Usage
-## Select setup mode
-![setup_mode.png](images/setup_mode.png)
-## Create a new k8s cluster
-### New or load a project
-![new_cluster.png](images/new_cluster.png)
-### New project
-![new_project.png](images/new_project.png)
-Each node provided will be assigned as different role according to [Cluster size and roles](cluster_size_and_roles).
-### Edit hosts
-![edit_hosts.png](images/edit_hosts.png)
-### Edit group
-![edit_group.png](images/edit_group.png)
-### Edit node labels
-![edit_node_labels.png](images/edit_node_labels.png)
-Labels can be selected from predefined ones, or input directly. One line by one label.
-### Set features
-![set_features.png](images/set_features.png)
-For containerd insecure registries, new entry must follow the format of the example. One line by one entry.
-### Set HA mode
-![ha_mode.png](images/ha_mode.png)
-### Network
-![network.png](images/network.png)
-5 IPs from each CIDR will be selected, and 'ping' command will be used to check IP conflict from the host installer running on.
-### Public download mirror
-![mirror.png](images/mirror.png)
+## Usage
+### Select setup mode
+
+<img src="images/setup_mode.png" width="880" alt="Setup mode">
+
+### Create a new k8s cluster
+
+#### New or load a project
+
+<img src="images/new_cluster.png" width="880" alt="New or load a project">
+
+#### New project
+
+<img src="images/new_project.png" width="880" alt="New project">
+
+Each node is assigned a role according to [Cluster size and roles](#cluster_size_and_roles).
+
+#### Edit hosts
+
+<img src="images/edit_hosts.png" width="880" alt="Edit hosts">
+
+#### Edit group
+
+<img src="images/edit_group.png" width="880" alt="Edit group">
+
+#### Edit node labels
+
+<img src="images/edit_node_labels.png" width="880" alt="Edit node labels">
+
+Labels can be selected from the predefined list or entered directly, one per line.
+
+#### Edit node taints
+
+<img src="images/edit_node_taints.png" width="880" alt="Edit node taints">
+
+#### Set features
+
+<img src="images/set_features.png" width="880" alt="Set features">
+
+#### Set HA mode
+
+<img src="images/ha_mode.png" width="880" alt="Set HA mode">
+
+#### Network
+
+<img src="images/network.png" width="880" alt="Network">
+
+Five sampled IPs from each CIDR are pinged from the host running the installer to detect conflicts.
+
+#### Public download mirror
+
+<img src="images/mirror.png" width="880" alt="Public download mirror">
+
 Thanks to [DaoCloud](https://github.com/DaoCloud/public-image-mirror).
-### Final check
-![final_check.png](images/final_check.png)
-Final check inventory file and extra vars, or edit them directly. Root password of all nodes is needed if everything is OK.
-### Start to setup
-![start_setup.png](images/start_setup.png)
-Execution log is stored in the file which path is shown on top of the window. The content of log file is also scrolling displayed on the windows.
-### Setup result
-![setup_result.png](images/setup_result.png)
-The background color will be set to green if setup is successful, or red if something is wrong.
 
-## Add nodes to existing cluster
-### Load existing project
-![load_existing_project.png](images/load_existing_project.png)
-### Add host
-![add_host.png](images/add_host.png)
-Role of new added host will be assigned according to [Cluster size and roles](cluster_size_and_roles).
+#### Final check
 
-## <a id="cluster_size_and_roles"></a>Cluster size and roles
-|  Cluster Size  |           node1           |         node2         |       node3       |  node4 and others  |
-|:--------------:|:-------------------------:|:---------------------:|:-----------------:|:------------------:|
+<img src="images/final_check.png" width="880" alt="Final check">
+
+Review the inventory file and extra vars, or edit them directly. The nodes' SSH credentials (plus the sudo password for a non-root user) are required once everything is correct.
+
+#### Start to setup
+
+<img src="images/start_setup.png" width="880" alt="Start to setup">
+
+The execution log is stored in the file whose path is shown at the top of the window; its content also scrolls in the window.
+
+#### Setup result
+
+<img src="images/setup_result.png" width="880" alt="Setup result">
+
+The background turns green on success and red on failure.
+
+### Add nodes to existing cluster
+
+#### Load existing project
+
+<img src="images/load_existing_project.png" width="880" alt="Load existing project">
+
+#### Add host
+
+<img src="images/add_host.png" width="880" alt="Add host">
+
+The role of a newly added host is assigned according to [Cluster size and roles](#cluster_size_and_roles).
+
+### <a id="cluster_size_and_roles"></a>Cluster size and roles
+
+|  Cluster Size  |           node1           |         node2         |           node3           |     node4 and others      |
+|:--------------:|:-------------------------:|:---------------------:|:-------------------------:|:-------------------------:|
 |       1        |   control-plane<br>etcd   |
 |       2        |   control-plane<br>etcd   |    control-plane      |
-|       3        |   control-plane<br>etcd   | control-plane<br>etcd | work node<br>etcd |
-| 4<br>and above |   control-plane<br>etcd   | control-plane<br>etcd | work node<br>etcd | work node |
+|       3        |   control-plane<br>etcd   | control-plane<br>etcd | worker (`kube_node`)<br>etcd |
+| 4<br>and above |   control-plane<br>etcd   | control-plane<br>etcd | worker (`kube_node`)<br>etcd | worker (`kube_node`) |
+
+Below 50 hosts, every host is also in `kube_node`, so control-plane nodes are schedulable workers too. At 50 hosts and above, the roles separate: the first three hosts are `etcd` (and `calico_rr`) only, hosts 4-5 are `kube_control_plane`, and the remaining hosts are `kube_node`; at 200 hosts and above, hosts 4-5 also leave `kube_node`.
