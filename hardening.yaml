@@ -154,12 +154,15 @@ kube_cert_group: root
 
 ## PodSecurity
 kube_pod_security_use_default: true
-kube_pod_security_default_enforce: restricted
+kube_pod_security_default_enforce: privileged
+# Audit restricted-profile violations without enforcing them; warnings stay
+# off so pod creation output stays quiet.
+kube_pod_security_default_audit: restricted
+kube_pod_security_default_warn: privileged
 kube_pod_security_exemptions_namespaces:
   - kube-system        # kubespray addons
   - ingress-nginx      # DaemonSet publishes hostPort 80/443
   - k8s-node-watcher   # optional installer addon; remove if unused
-# Add any other addon namespace here if its pods need hostPath, hostNetwork,
-# hostPort, privileged, or root (for example monitoring/prometheus for
-# node-exporter). Workloads in other namespaces must satisfy the restricted
-# Pod Security Standard or their pods are rejected when they are created.
+# With enforce: privileged, unlabeled namespaces admit everything, so these
+# exemptions no longer restrict anything. They matter again (as the exception
+# list) if you switch the default back to baseline or restricted.
